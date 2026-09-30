@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { SignInButton, UserButton } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "motion/react";
 import { BookOpen, Command, Grid2x2, Magnet, Redo2, Undo2 } from "lucide-react";
 import { Tooltip, TooltipGroup } from "@/components/interior/tooltip-group";
+import { SaveToAccountButton } from "@/components/editor/SaveToAccountButton";
 import { Button } from "@/components/ui/button";
 import { pageCount } from "@/lib/zine/schema";
 import { authEnabled } from "@/lib/auth";
@@ -12,6 +13,8 @@ import { useEditorStore } from "@/stores/editor";
 import { cn } from "@/lib/utils";
 
 const SAVE_LABEL = { idle: "", saving: "Saving…", saved: "Saved", error: "Not saved" } as const;
+// Signed out, "Saved" would oversell it: the work only lives in this browser.
+const LOCAL_SAVE_LABEL = { ...SAVE_LABEL, saved: "Saved in this browser" } as const;
 
 type Props = {
   // Editing a zine saved to the signed-in account (vs. one kept only in this browser).
@@ -67,26 +70,21 @@ export function TopBar({ cloud }: Props) {
   const saveState = useEditorStore((s) => s.saveState);
   const showGuides = useEditorStore((s) => s.showGuides);
   const snapping = useEditorStore((s) => s.snapping);
+  const saveLabel = (cloud ? SAVE_LABEL : LOCAL_SAVE_LABEL)[saveState];
   const { undo, redo, toggleGuides, toggleSnapping, setCommandOpen, setPreviewOpen, change } = useEditorStore.getState();
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3 text-card-foreground">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {cloud ? (
-          <Tooltip side="bottom" label="All zines">
-            <Link
-              href="/"
-              aria-label="All zines"
-              className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary font-heading text-[13px] font-bold text-primary-foreground outline-none transition-opacity hover:opacity-85 focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              z
-            </Link>
-          </Tooltip>
-        ) : (
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary font-heading text-[13px] font-bold text-primary-foreground" aria-hidden>
+        <Tooltip side="bottom" label={cloud ? "All zines" : "Home"}>
+          <Link
+            href="/"
+            aria-label={cloud ? "All zines" : "Home"}
+            className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary font-heading text-[13px] font-bold text-primary-foreground outline-none transition-opacity hover:opacity-85 focus-visible:ring-1 focus-visible:ring-ring"
+          >
             z
-          </span>
-        )}
+          </Link>
+        </Tooltip>
         <input
           aria-label="Zine title"
           value={zine?.title ?? ""}
@@ -106,7 +104,7 @@ export function TopBar({ cloud }: Props) {
           </span>
         ) : null}
         <AnimatePresence mode="wait">
-          {SAVE_LABEL[saveState] ? (
+          {saveLabel ? (
             <motion.span
               key={saveState}
               initial={{ opacity: 0, y: 2 }}
@@ -114,7 +112,7 @@ export function TopBar({ cloud }: Props) {
               exit={{ opacity: 0, transition: { duration: 0.1 } }}
               className={cn("text-xs", saveState === "error" ? "text-destructive" : "text-subtle-foreground")}
             >
-              {SAVE_LABEL[saveState]}
+              {saveLabel}
             </motion.span>
           ) : null}
         </AnimatePresence>
@@ -150,11 +148,7 @@ export function TopBar({ cloud }: Props) {
       {cloud ? (
         <UserButton />
       ) : authEnabled ? (
-        <SignInButton mode="modal">
-          <Button size="sm" variant="outline">
-            Sign in to save
-          </Button>
-        </SignInButton>
+        <SaveToAccountButton />
       ) : null}
     </header>
   );

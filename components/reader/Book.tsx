@@ -25,9 +25,11 @@ type BookProps = {
   heightMm: number;
   leafCount: number;
   pageImage?: (side: number) => HTMLCanvasElement | undefined;
+  // Saddle-stitch staples along the spine; off for unbound books.
+  stapled?: boolean;
 };
 
-export function Book({ widthMm, heightMm, leafCount, pageImage }: BookProps) {
+export function Book({ widthMm, heightMm, leafCount, pageImage, stapled = true }: BookProps) {
   const { scene, animations } = useGLTF(LEAF_URL);
   const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
   const domElement = useThree((s) => s.gl.domElement);
@@ -122,7 +124,7 @@ export function Book({ widthMm, heightMm, leafCount, pageImage }: BookProps) {
       {book.roots.map((root, i) => (
         <primitive key={i} object={root} />
       ))}
-      <Staples heightM={book.heightM} clinchRef={clinchRef} />
+      {stapled && leafCount % 2 === 0 ? <Staples heightM={book.heightM} clinchRef={clinchRef} /> : null}
     </group>
   );
 }

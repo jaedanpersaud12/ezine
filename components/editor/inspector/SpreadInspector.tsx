@@ -2,15 +2,20 @@
 
 import { Minus, Plus } from "lucide-react";
 import { Dropdown } from "@/components/interior/dropdown";
+import { SegmentedControl } from "@/components/interior/segmented-control";
 import { ColorField } from "@/components/editor/fields/ColorField";
 import { NumberField } from "@/components/editor/fields/NumberField";
 import { FoliosSection } from "@/components/editor/inspector/FoliosSection";
 import { Row, Section } from "@/components/editor/fields/Section";
 import { TRIMS, type TrimId } from "@/lib/book/trim";
-import { pageCount, spreadLabel } from "@/lib/zine/schema";
+import { pageCount, pageStep, spreadLabel } from "@/lib/zine/schema";
 import { MAX_PAGES, useEditorStore } from "@/stores/editor";
 
 const CUSTOM = "custom";
+const BINDINGS = [
+  { value: "saddle", label: "Saddle stitch" },
+  { value: "none", label: "None" },
+];
 const TRIM_ITEMS = [
   ...Object.values(TRIMS).map((t) => ({ value: t.id, label: t.label, hint: `${t.widthMm} × ${t.heightMm}` })),
   { value: CUSTOM, label: "Custom", hint: "any size" },
@@ -26,9 +31,11 @@ export function SpreadInspector() {
   const spreadIndex = useEditorStore((s) => s.spreadIndex);
   const change = useEditorStore((s) => s.change);
   const setPageCount = useEditorStore((s) => s.setPageCount);
+  const setBinding = useEditorStore((s) => s.setBinding);
   if (!zine) return null;
 
   const spread = zine.spreads[spreadIndex];
+  const step = pageStep(zine);
 
   return (
     <>
@@ -155,14 +162,23 @@ export function SpreadInspector() {
             }
           />
         </div>
+        <Row label="Binding">
+          <SegmentedControl
+            label="Binding"
+            options={BINDINGS}
+            value={zine.binding}
+            className="w-full"
+            onValueChange={(v) => (v === "saddle" || v === "none") && setBinding(v)}
+          />
+        </Row>
         <Row label="Pages">
           <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1">
             <button
               type="button"
-              aria-label="Remove 4 pages"
-              title="Remove the last sheet (4 pages)"
+              aria-label={`Remove ${step} pages`}
+              title={`Remove the last ${step} pages`}
               disabled={pageCount(zine) <= 4}
-              onClick={() => setPageCount(pageCount(zine) - 4)}
+              onClick={() => setPageCount(pageCount(zine) - step)}
               className="flex size-7 items-center justify-center rounded-md bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5"
             >
               <Minus />
@@ -173,17 +189,17 @@ export function SpreadInspector() {
               value={pageCount(zine)}
               min={4}
               max={MAX_PAGES}
-              step={4}
+              step={step}
               precision={0}
               scrubPx={12}
               onChange={setPageCount}
             />
             <button
               type="button"
-              aria-label="Add 4 pages"
-              title="Add a sheet (4 pages) before the back cover"
+              aria-label={`Add ${step} pages`}
+              title={`Add ${step} pages before the back cover`}
               disabled={pageCount(zine) >= MAX_PAGES}
-              onClick={() => setPageCount(pageCount(zine) + 4)}
+              onClick={() => setPageCount(pageCount(zine) + step)}
               className="flex size-7 items-center justify-center rounded-md bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5"
             >
               <Plus />
@@ -191,7 +207,10 @@ export function SpreadInspector() {
           </div>
         </Row>
         <p className="text-[11px] leading-relaxed text-subtle-foreground">
-          Saddle stitched, so pages come in fours (one folded sheet each); other numbers round to the nearest four. Pages are added or removed at the back.
+          {zine.binding === "saddle"
+            ? "Stapled through the fold, so pages come in fours: one folded sheet each."
+            : "Loose leaves or digital: pages come in twos, one leaf each."}{" "}
+          Pages are added or removed at the back.
         </p>
       </Section>
 

@@ -40,11 +40,12 @@ type ReaderSceneProps = {
   heightMm: number;
   leafCount: number;
   pageImage?: (side: number) => HTMLCanvasElement | undefined;
+  stapled?: boolean;
   // Changes whenever the page art does, so the book rebuilds with new textures.
   version?: string;
 };
 
-export default function ReaderScene({ widthMm, heightMm, leafCount, pageImage, version = "" }: ReaderSceneProps) {
+export default function ReaderScene({ widthMm, heightMm, leafCount, pageImage, stapled = true, version = "" }: ReaderSceneProps) {
   return (
     <Canvas
       shadows
@@ -76,6 +77,7 @@ export default function ReaderScene({ widthMm, heightMm, leafCount, pageImage, v
             heightMm={heightMm}
             leafCount={leafCount}
             pageImage={pageImage}
+            stapled={stapled}
           />
         </group>
       </Suspense>

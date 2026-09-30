@@ -108,3 +108,62 @@ test("the page count in Book is editable from any spread, in whole sheets", asyn
   expect(await pageCount(page)).toBe(8);
   expect(await page.evaluate(() => window.__zine?.store.getState().zine?.spreads.at(-1)?.id)).toBe(backId);
 });
+
+test("page count is typeable from any spread and rounds to the binding's step", async ({ page }) => {
+  await openEditor(page, 0);
+  const aside = page.locator("aside");
+  const field = aside.getByRole("textbox", { name: "Page count" });
+  await field.fill("30");
+  await field.press("Enter");
+  await settle(page);
+  expect(await pageCount(page)).toBe(32); // saddle stitch: nearest four
+
+  await aside.getByRole("radio", { name: "None" }).click();
+  await field.fill("30");
+  await field.press("Enter");
+  await settle(page);
+  expect(await pageCount(page)).toBe(30); // unbound: twos are fine
+
+  await aside.getByRole("button", { name: "Add 2 pages" }).click();
+  await settle(page);
+  expect(await pageCount(page)).toBe(32);
+  await aside.getByRole("button", { name: "Remove 2 pages" }).click();
+  await settle(page);
+  expect(await pageCount(page)).toBe(30);
+
+  // Back to saddle stitch: rounds up to whole sheets with a blank spread before the back cover.
+  const backId = await page.evaluate(() => window.__zine?.store.getState().zine?.spreads.at(-1)?.id);
+  await aside.getByRole("radio", { name: "Saddle stitch" }).click();
+  await settle(page);
+  expect(await pageCount(page)).toBe(32);
+  expect(await page.evaluate(() => window.__zine?.store.getState().zine?.spreads.at(-1)?.id)).toBe(backId);
+});
+
+test("unbound books add and delete a single spread at a time", async ({ page }) => {
+  await openEditor(page, 0);
+  await page.locator("aside").getByRole("radio", { name: "None" }).click();
+  await settle(page);
+  await strip(page).getByRole("button", { name: "4–5", exact: true }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete pages 4–5" }).click();
+  await settle(page);
+  expect(await pageCount(page)).toBe(14);
+  await strip(page).getByRole("button", { name: "Add 2 pages" }).click();
+  await settle(page);
+  expect(await pageCount(page)).toBe(16);
+});
+
+test("the 3D preview opens for an unbound book with an odd number of leaves", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await openEditor(page, 0);
+  const aside = page.locator("aside");
+  await aside.getByRole("radio", { name: "None" }).click();
+  const field = aside.getByRole("textbox", { name: "Page count" });
+  await field.fill("14"); // 7 leaves: no centre spread, no staples
+  await field.press("Enter");
+  await settle(page);
+  await page.getByRole("button", { name: "Preview" }).click();
+  await expect(page.getByRole("dialog", { name: "3D preview" }).locator("canvas")).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(500);
+  expect(errors).toEqual([]);
+});

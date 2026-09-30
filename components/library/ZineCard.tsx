@@ -11,7 +11,17 @@ type Props = {
   zine: ZineSummary;
 };
 
-const dateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const recent = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+const older = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+
+function edited(iso: string): string {
+  const minutes = Math.round((Date.parse(iso) - Date.now()) / 60_000);
+  if (minutes > -1) return "Edited just now";
+  if (minutes > -60) return `Edited ${recent.format(minutes, "minute")}`;
+  if (minutes > -60 * 24) return `Edited ${recent.format(Math.round(minutes / 60), "hour")}`;
+  if (minutes > -60 * 24 * 7) return `Edited ${recent.format(Math.round(minutes / 1440), "day")}`;
+  return `Edited ${older.format(new Date(iso))}`;
+}
 
 export function ZineCard({ zine }: Props) {
   const [pending, startTransition] = useTransition();
@@ -28,27 +38,30 @@ export function ZineCard({ zine }: Props) {
   }
 
   return (
-    <div className={cn("group flex flex-col gap-2 transition-opacity", pending && "pointer-events-none opacity-40")}>
+    <div className={cn("group flex flex-col gap-3 transition-opacity", pending && "pointer-events-none opacity-40")}>
       <Link
         href={`/zines/${zine.id}`}
-        className="flex items-center justify-center rounded-lg border border-border bg-muted p-5 outline-none transition-colors hover:border-ring focus-visible:ring-1 focus-visible:ring-ring"
+        className="flex aspect-[4/5] items-center justify-center rounded-lg bg-muted outline-none transition-colors hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring"
       >
-        {/* The cover at its trim proportions. */}
+        {/* The cover at its trim proportions, in its own colours (page content, not UI). */}
         <div
-          className="flex w-3/4 items-end rounded-sm bg-card p-3 shadow-sm"
-          style={{ aspectRatio: `${zine.widthMm} / ${zine.heightMm}` }}
-        >
-          <span className="line-clamp-3 font-heading text-sm font-semibold leading-tight text-card-foreground">{zine.title}</span>
-        </div>
+          className="w-[62%] rounded-xs shadow-sm ring-1 ring-border transition-transform duration-300 ease-out group-hover:-translate-y-1 group-hover:rotate-[-1.5deg]"
+          style={{ aspectRatio: `${zine.widthMm} / ${zine.heightMm}`, backgroundColor: zine.coverColor }}
+        />
       </Link>
-      <div className="flex items-start justify-between gap-2 px-0.5">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{zine.title}</p>
-          <p className="text-xs text-subtle-foreground tabular-nums">
-            {zine.pages} pages · {dateFormat.format(new Date(zine.updatedAt))}
+      <div className="flex items-start justify-between gap-2">
+        <Link href={`/zines/${zine.id}`} className="min-w-0 rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring">
+          <p className="truncate text-sm font-medium">{zine.title || "Untitled zine"}</p>
+          <p className="text-xs text-subtle-foreground">
+            {zine.pages} pages, {edited(zine.updatedAt)}
           </p>
-        </div>
-        <HoldToConfirm onConfirm={remove} confirmLabel="Deleted" duration={1200} className="h-7 shrink-0 px-2 text-xs opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100">
+        </Link>
+        <HoldToConfirm
+          onConfirm={remove}
+          confirmLabel="Deleted"
+          duration={1200}
+          className="h-7 shrink-0 px-2 text-xs opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+        >
           Hold to delete
         </HoldToConfirm>
       </div>

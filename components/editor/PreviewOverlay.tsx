@@ -76,6 +76,7 @@ export function PreviewOverlay() {
                 heightMm={rendered.zine.trim.heightMm}
                 leafCount={leafCount(rendered.zine)}
                 pageImage={pageImage}
+                stapled={rendered.zine.binding === "saddle"}
                 version={rendered.zine.updatedAt}
               />
             </motion.div>

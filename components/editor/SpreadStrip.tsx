@@ -5,8 +5,8 @@ import { motion, Reorder } from "motion/react";
 import { ArrowLeft, ArrowRight, CopyPlus, Eraser, FilePlus2, Plus, Trash2 } from "lucide-react";
 import { ContextMenu, type ContextMenuItem } from "@/components/interior/context-menu";
 import { useSpreadThumbnails } from "@/hooks/useSpreadThumbnails";
-import { spreadGeometry, spreadLabel, type Spread, type Zine } from "@/lib/zine/schema";
-import { removablePair, useEditorStore } from "@/stores/editor";
+import { pageStep, spreadGeometry, spreadLabel, type Spread, type Zine } from "@/lib/zine/schema";
+import { removableRange, useEditorStore } from "@/stores/editor";
 import { cn } from "@/lib/utils";
 
 const THUMB_H = 64;
@@ -16,16 +16,17 @@ function spreadMenu(zine: Zine, index: number): ContextMenuItem[] {
   const s = useEditorStore.getState;
   const last = zine.spreads.length - 1;
   const inner = index > 0 && index < last;
-  const pair = removablePair(zine, index);
-  const pairLabel = pair
-    ? `${spreadGeometry(zine, pair[0]).sides[0]}–${spreadGeometry(zine, pair[1]).sides.at(-1)}`
+  const range = removableRange(zine, index);
+  const step = pageStep(zine);
+  const rangeLabel = range
+    ? `${spreadGeometry(zine, range.start).sides[0]}–${spreadGeometry(zine, range.start + range.count - 1).sides.at(-1)}`
     : "";
   const items: ContextMenuItem[] = [
-    { id: "insert", label: "Add 4 pages after", icon: <FilePlus2 />, onSelect: () => s().insertPagesAfter(index) },
+    { id: "insert", label: `Add ${step} pages after`, icon: <FilePlus2 />, onSelect: () => s().insertPagesAfter(index) },
   ];
   if (inner) {
     items.push(
-      { id: "duplicate", label: "Duplicate (+ blank spread)", icon: <CopyPlus />, onSelect: () => s().duplicateSpread(index) },
+      { id: "duplicate", label: zine.binding === "saddle" ? "Duplicate (+ blank spread)" : "Duplicate", icon: <CopyPlus />, onSelect: () => s().duplicateSpread(index) },
       { id: "sep1", type: "separator" },
       { id: "left", label: "Move left", icon: <ArrowLeft />, disabled: index <= 1, onSelect: () => s().moveSpread(index, index - 1) },
       { id: "right", label: "Move right", icon: <ArrowRight />, disabled: index >= last - 1, onSelect: () => s().moveSpread(index, index + 1) },
@@ -44,9 +45,9 @@ function spreadMenu(zine: Zine, index: number): ContextMenuItem[] {
   if (inner) {
     items.push({
       id: "delete",
-      label: pair ? `Delete pages ${pairLabel}` : "Delete (book needs 4+ pages)",
+      label: range ? `Delete pages ${rangeLabel}` : "Delete (book needs 4+ pages)",
       icon: <Trash2 />,
-      disabled: !pair,
+      disabled: !range,
       onSelect: () => s().removePages(index),
     });
   }
@@ -216,8 +217,8 @@ export function SpreadStrip() {
         layout
         type="button"
         onClick={addPages}
-        aria-label="Add 4 pages"
-        title="Add a sheet (4 pages) after this spread"
+        aria-label={`Add ${pageStep(zine)} pages`}
+        title={`Add ${pageStep(zine)} pages after this spread`}
         whileTap={{ scale: 0.94 }}
         className="flex shrink-0 flex-col items-center gap-1.5 text-subtle-foreground outline-none hover:text-foreground focus-visible:text-foreground"
       >
@@ -227,7 +228,7 @@ export function SpreadStrip() {
         >
           <Plus />
         </span>
-        <span className="text-[10.5px]">+4 pages</span>
+        <span className="text-[10.5px]">+{pageStep(zine)} pages</span>
       </motion.button>
     </nav>
   );

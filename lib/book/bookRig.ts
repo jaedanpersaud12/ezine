@@ -135,8 +135,11 @@ export function createBookRig(options: BookRigOptions): BookRig {
   const centreB = leafCount / 2;
   let clinch: Object3D | null = null;
 
+  // Only an even leaf count has a centre spread to staple through.
+  const hasCentre = leafCount % 2 === 0;
+
   const placeClinch = (): void => {
-    if (!clinch) return;
+    if (!clinch || !hasCentre) return;
     const a = leaves[centreA].state.p;
     const b = leaves[centreB].state.p;
     const topA = leafHeight(stack, centreA, a) + stack.thickness[centreA] / 2;

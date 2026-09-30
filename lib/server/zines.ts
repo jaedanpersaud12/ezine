@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { newZine } from "@/lib/zine/create";
 import { zineSchema, type Zine } from "@/lib/zine/schema";
 import { sql } from "@/lib/server/db";
@@ -7,14 +8,26 @@ import { deleteObject } from "@/lib/server/r2";
 // Zine documents in Neon, scoped to their Clerk owner. Every query filters on user_id,
 // so a zine id alone never reads or writes someone else's work.
 
-export type ZineSummary = { id: string; title: string; updatedAt: string; pages: number; widthMm: number; heightMm: number };
+export type ZineSummary = {
+  id: string;
+  title: string;
+  updatedAt: string;
+  pages: number;
+  widthMm: number;
+  heightMm: number;
+  // Cover colour (its background, else the paper), for the library card.
+  coverColor: string;
+};
+
+const HEX = /^#[0-9a-fA-F]{6}$/;
 
 export async function listZines(userId: string): Promise<ZineSummary[]> {
   const rows = await sql`
     select id, title, updated_at,
       jsonb_array_length(doc->'spreads') as spreads,
       (doc->'trim'->>'widthMm')::float as width_mm,
-      (doc->'trim'->>'heightMm')::float as height_mm
+      (doc->'trim'->>'heightMm')::float as height_mm,
+      coalesce(doc->'spreads'->0->>'background', doc->'paper'->>'color') as cover_color
     from zines where user_id = ${userId}
     order by updated_at desc`;
   return rows.map((r) => ({
@@ -24,10 +37,12 @@ export async function listZines(userId: string): Promise<ZineSummary[]> {
     pages: (Number(r.spreads) - 1) * 2,
     widthMm: Number(r.width_mm),
     heightMm: Number(r.height_mm),
+    coverColor: HEX.test(String(r.cover_color)) ? String(r.cover_color) : "#ffffff",
   }));
 }
 
-export async function getZine(userId: string, id: string): Promise<Zine | null> {
+// Cached per request: the page and its metadata both ask for the same zine.
+export const getZine = cache(async (userId: string, id: string): Promise<Zine | null> => {
   const rows = await sql`select doc from zines where id = ${id} and user_id = ${userId}`;
   if (!rows.length) return null;
   const parsed = zineSchema.safeParse(rows[0].doc);
@@ -36,7 +51,7 @@ export async function getZine(userId: string, id: string): Promise<Zine | null> 
     return null;
   }
   return parsed.data;
-}
+});
 
 export async function createZine(userId: string): Promise<string> {
   const zine = newZine();

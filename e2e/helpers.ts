@@ -30,7 +30,7 @@ export type DocLayer = {
 };
 
 export async function openEditor(page: Page, spread = 1): Promise<void> {
-  await page.goto("/");
+  await page.goto("/new");
   await page.waitForFunction(() => Boolean(window.__zine?.stage && window.__zine.store.getState().zine));
   await page.evaluate((i) => window.__zine?.store.getState().setSpread(i), spread);
   await settle(page);

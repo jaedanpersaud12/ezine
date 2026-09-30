@@ -15,8 +15,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zine Builder",
+  title: { default: "Zine Builder", template: "%s · Zine Builder" },
   description: "Make a zine, then flip through it in 3D.",
+};
+
+// Clerk's sign-in and account UI, drawn in the app's own tokens so the modal looks native.
+const clerkAppearance = {
+  variables: {
+    colorPrimary: "var(--primary)",
+    colorPrimaryForeground: "var(--primary-foreground)",
+    colorBackground: "var(--popover)",
+    colorForeground: "var(--popover-foreground)",
+    colorMuted: "var(--muted)",
+    colorMutedForeground: "var(--muted-foreground)",
+    colorInput: "var(--background)",
+    colorInputForeground: "var(--foreground)",
+    colorBorder: "var(--border)",
+    colorRing: "var(--ring)",
+    colorDanger: "var(--destructive)",
+    borderRadius: "var(--radius)",
+    fontFamily: "var(--font-sans)",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -26,7 +45,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {authEnabled ? <ClerkProvider>{children}</ClerkProvider> : children}
+        {authEnabled ? (
+          <ClerkProvider appearance={clerkAppearance} afterSignOutUrl="/">
+            {children}
+          </ClerkProvider>
+        ) : children}
       </body>
     </html>
   );
