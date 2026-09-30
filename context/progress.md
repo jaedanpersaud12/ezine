@@ -1,8 +1,8 @@
 # Progress
 
 **Stage:** Phase A, safe to invite people
-**Last completed:** none (accounts, landing page and journey shipped before this plan)
-**Active feature:** 02 Errors and failure states (`feat/02-errors-and-failure-states`)
+**Last completed:** 02 Errors and failure states
+**Active feature:** none
 **Next:** 03 Upload pipeline and limits
 **Blocker:** none
 
@@ -12,7 +12,7 @@ Keep this short. Detail belongs in the feature's own folder — `spec.md`, `plan
 ## Checklist
 
 - [ ] **01** Production auth
-- [ ] **02** Errors and failure states (in progress)
+- [x] **02** Errors and failure states
 - [ ] **03** Upload pipeline and limits
 - [ ] **04** Save integrity
 - [ ] **05** Observability

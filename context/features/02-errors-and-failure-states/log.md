@@ -85,3 +85,25 @@ Minor 2 as well, because it sits in the same code.
   - Signed-in tests get 120 s each.
   - The 404 "Go home" and "New zine" navigations get 15 s, like the journey test.
 - Full suite: 49 passed. `bun run check` clean; `next build` passes.
+
+## Evidence per criterion (for /feature finish)
+- 404 → e2e `failures.spec.ts` "an unknown URL shows the app's own 404".
+- error.tsx / global-error.tsx → by hand (see Evidence above).
+- Canvas crash → e2e "a canvas crash keeps the editor and the document".
+- Preview crash → e2e "a preview crash says so and hands back to the editor".
+- Offline → e2e `saving.spec.ts` "offline: says so, keeps the edit…".
+- 401 with Sign in through sign-in and back → e2e "signed out mid-edit: Sign in goes through
+  sign-in and back".
+- Session ending mid-edit → e2e "session ends mid-edit" and "session ends right after an undo".
+- 500 → e2e "server error: says so, and Retry saves".
+- R2 refused → e2e "storage refuses an image: marked on its layer".
+- IndexedDB quota → e2e "a browser that refuses the write says it's out of space" (commit abort).
+- Document intact after every failure → partly verified:
+  - The crash tests compare the whole document JSON.
+  - The storage test checks the title survives a reload.
+  - The signed-in tests check the edited title in the store and in the database.
+  - Not verified for the rest of the document in the signed-in cases, because those tests only
+    change the title; nothing in the failure paths touches other fields.
+- Signed-in tests only on local Postgres → `e2e/db.ts` refuses non-local URLs, and
+  `requireAccount()` skips without it. Not verified for an already-running dev server on another
+  database, because Playwright reuses whatever server is on the port (review Minor 6).

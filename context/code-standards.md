@@ -323,5 +323,6 @@ Approved dependencies for this project:
 - `lucide-react` — Icons
 - `tailwindcss` — Styling
 - `@ja3dan` registry components — UI primitives, via `bunx shadcn add @ja3dan/<item>`
+- `@clerk/testing` (dev) — signs the e2e test user in with Clerk's testing tokens (02)
 
 _Add a row here — with the reason — before installing anything not already on this list._
