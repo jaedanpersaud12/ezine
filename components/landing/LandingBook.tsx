@@ -16,6 +16,9 @@ const LEAVES = 8;
 const FIRST_TURN_MS = 2200;
 const TURN_EVERY_MS = 1800;
 const AUTO_TURNS = 3;
+// Closer to overhead than the reader's view (about 22° off vertical, vs 36°), so the far pages
+// don't slant away into blur, but still tilted enough to read as a book, not a scan.
+const CAMERA: [number, number, number] = [0, 0.37, 0.15];
 
 // The real 3D reader as the hero image. It turns a few pages by itself to show it's a book,
 // then stops for good the moment someone reaches for it.
@@ -49,10 +52,7 @@ export function LandingBook() {
           touched.current = true;
         }}
       >
-        {/* Taller than the frame and pulled up: crops the empty wall behind the far edge of the mat. */}
-        <div className="absolute inset-x-0 -top-[20%] bottom-0">
-          <ReaderScene widthMm={trim.widthMm} heightMm={trim.heightMm} leafCount={LEAVES} />
-        </div>
+        <ReaderScene widthMm={trim.widthMm} heightMm={trim.heightMm} leafCount={LEAVES} surface="none" cameraRest={CAMERA} />
       </div>
       <figcaption className="text-center text-xs text-subtle-foreground">Drag a page to turn it.</figcaption>
     </figure>

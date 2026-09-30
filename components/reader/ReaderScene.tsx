@@ -10,8 +10,10 @@ import { CuttingMat, MAT_TOP_M } from "@/components/reader/CuttingMat";
 
 const CAMERA_REST: [number, number, number] = [0, 0.36, 0.26];
 
+type Vec3 = [number, number, number];
+
 // The camera drops in from above the first time the scene appears.
-function IntroCamera() {
+function IntroCamera({ rest }: { rest: Vec3 }) {
   const camera = useThree((s) => s.camera);
 
   useEffect(() => {
@@ -19,9 +21,9 @@ function IntroCamera() {
       camera.position,
       { x: 0, y: 0.62, z: 0.08 },
       {
-        x: CAMERA_REST[0],
-        y: CAMERA_REST[1],
-        z: CAMERA_REST[2],
+        x: rest[0],
+        y: rest[1],
+        z: rest[2],
         duration: 1.6,
         ease: "power3.out",
         onUpdate: () => camera.lookAt(0, 0, 0),
@@ -30,7 +32,7 @@ function IntroCamera() {
     return () => {
       tween.kill();
     };
-  }, [camera]);
+  }, [camera, rest]);
 
   return null;
 }
@@ -41,16 +43,29 @@ type ReaderSceneProps = {
   leafCount: number;
   pageImage?: (side: number) => HTMLCanvasElement | undefined;
   stapled?: boolean;
+  // What the book sits on: the cutting mat, or nothing but its own soft shadow.
+  surface?: "mat" | "none";
+  // Where the camera settles. Defaults to the reader's three-quarter view.
+  cameraRest?: Vec3;
   // Changes whenever the page art does, so the book rebuilds with new textures.
   version?: string;
 };
 
-export default function ReaderScene({ widthMm, heightMm, leafCount, pageImage, stapled = true, version = "" }: ReaderSceneProps) {
+export default function ReaderScene({
+  widthMm,
+  heightMm,
+  leafCount,
+  pageImage,
+  stapled = true,
+  surface = "mat",
+  cameraRest = CAMERA_REST,
+  version = "",
+}: ReaderSceneProps) {
   return (
     <Canvas
       shadows
       dpr={[1, 2]}
-      camera={{ position: CAMERA_REST, fov: 38, near: 0.01, far: 5 }}
+      camera={{ position: cameraRest, fov: 38, near: 0.01, far: 5 }}
       className="touch-none"
     >
       <hemisphereLight intensity={0.9} />
@@ -69,8 +84,16 @@ export default function ReaderScene({ widthMm, heightMm, leafCount, pageImage, s
         shadow-camera-far={1.5}
       />
       <Suspense fallback={null}>
-        <CuttingMat />
-        <group position-y={MAT_TOP_M}>
+        {surface === "mat" ? (
+          <CuttingMat />
+        ) : (
+          // Invisible ground that only catches the book's shadow, so it sits on whatever is behind the canvas.
+          <mesh rotation-x={-Math.PI / 2} receiveShadow>
+            <planeGeometry args={[1, 1]} />
+            <shadowMaterial opacity={0.14} />
+          </mesh>
+        )}
+        <group position-y={surface === "mat" ? MAT_TOP_M : 0.0005}>
           <Book
             key={`${widthMm}x${heightMm}-${leafCount}-${version}`}
             widthMm={widthMm}
@@ -81,7 +104,7 @@ export default function ReaderScene({ widthMm, heightMm, leafCount, pageImage, s
           />
         </group>
       </Suspense>
-      <IntroCamera />
+      <IntroCamera rest={cameraRest} />
       {/* No LEFT / ONE binding: left drag and one finger turn pages (Book); right drag orbits, wheel or pinch zooms. */}
       <OrbitControls
         makeDefault
