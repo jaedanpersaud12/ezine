@@ -14,7 +14,7 @@ import {
 } from "fabric";
 import { applyLayer, createObject, layerIdOf, measuredTextHeight, readTransform } from "@/lib/editor/fabric/objects";
 import { ensureFont } from "@/lib/editor/assets";
-import { snapBox, snapTargets } from "@/lib/editor/fabric/snapping";
+import { NO_LOCK, snapBox, snapTargets, type SnapLock } from "@/lib/editor/fabric/snapping";
 import { ZineCanvas, type SheetSpec } from "@/lib/editor/fabric/ZineCanvas";
 import { newDrawLayer, newShapeLayer, newTextLayer } from "@/lib/zine/create";
 import { DEFAULT_INK } from "@/lib/zine/palettes";
@@ -40,7 +40,9 @@ export type StageCallbacks = {
 const SCREEN_DPI_MM = 96 / 25.4; // 100% = true size on a 96 dpi screen
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 60;
+// A guide catches an edge within SNAP_PX and holds it until the pointer pulls RELEASE_PX away.
 const SNAP_PX = 6;
+const RELEASE_PX = 12;
 // Room around a fitted spread; the bottom leaves space for the floating toolbar.
 const FIT_PAD = { x: 48, top: 40, bottom: 96 };
 const SHAPE_TOOLS: Tool[] = ["rect", "ellipse", "triangle", "line"];
@@ -76,6 +78,7 @@ export class StageController {
   private fitted = false;
   private readonly measured = new Map<string, number>();
   private measureQueued = false;
+  private snapLock: SnapLock = NO_LOCK;
 
   constructor(el: HTMLCanvasElement, callbacks: StageCallbacks) {
     this.callbacks = callbacks;
@@ -394,10 +397,15 @@ export class StageController {
       if (patches.length) this.callbacks.onTransform(patches);
     });
 
+    c.on("before:transform", () => {
+      this.snapLock = NO_LOCK;
+    });
+
     c.on("object:moving", ({ target, e }) => {
       const sheet = c.sheet;
       if (!sheet || ("altKey" in e && e.altKey)) {
         c.snapLines = [];
+        this.snapLock = NO_LOCK;
         return;
       }
       const moving = new Set(target instanceof ActiveSelection ? target.getObjects() : [target]);
@@ -407,12 +415,14 @@ export class StageController {
         .map((o) => o.getBoundingRect());
       // Fabric only refreshes coords at the end of a drag; without this the box is a frame stale.
       target.setCoords();
-      const { dx, dy, lines } = snapBox(target.getBoundingRect(), snapTargets(sheet, others), SNAP_PX / c.getZoom());
-      if (dx || dy) {
-        target.set({ left: target.left + dx, top: target.top + dy });
+      const zoom = c.getZoom();
+      const snap = snapBox(target.getBoundingRect(), snapTargets(sheet, others), this.snapLock, SNAP_PX / zoom, RELEASE_PX / zoom);
+      this.snapLock = snap.lock;
+      if (snap.dx || snap.dy) {
+        target.set({ left: target.left + snap.dx, top: target.top + snap.dy });
         target.setCoords();
       }
-      c.snapLines = lines;
+      c.snapLines = snap.lines;
     });
 
     c.on("text:changed", ({ target }) => {
