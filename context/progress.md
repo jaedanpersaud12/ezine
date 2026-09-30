@@ -1,9 +1,9 @@
 # Progress
 
-**Stage:** 01 — <first feature from `build-plan.md`>
-**Last completed:** none
+**Stage:** Phase A, safe to invite people
+**Last completed:** none (accounts, landing page and journey shipped before this plan)
 **Active feature:** none
-**Next:** 01
+**Next:** 01 Production auth
 **Blocker:** none
 
 Keep this short. Detail belongs in the feature's own folder — `spec.md`, `plan.md`,
@@ -11,13 +11,23 @@ Keep this short. Detail belongs in the feature's own folder — `spec.md`, `plan
 
 ## Checklist
 
-<!--
-  One line per numbered feature in build-plan.md, in order, e.g.:
-  - [ ] **01** Homepage
-  - [ ] **02** Auth
-  Fill this in from the real build-plan.md stage 3 produced — don't invent feature
-  numbers or names here that don't match it.
--->
+- [ ] **01** Production auth
+- [ ] **02** Errors and failure states
+- [ ] **03** Upload pipeline and limits
+- [ ] **04** Save integrity
+- [ ] **05** Observability
+- [ ] **06** CI, releases and migrations
+- [ ] **07** Launch basics
+- [ ] **08** Print export
+- [ ] **09** Share and publish
+- [ ] **10** Library upgrade
+- [ ] **11** Image tools
+- [ ] **12** Typography pass
+- [ ] **13** Templates and first run
+- [ ] **14** Editor UX pass
+- [ ] **15** Small screens
+- [ ] **16** Performance and accessibility
+- [ ] **17** Launch QA and ops
 
 ## Notes
 

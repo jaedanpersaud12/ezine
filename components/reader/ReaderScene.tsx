@@ -8,7 +8,9 @@ import { MOUSE, TOUCH } from "three";
 import { Book } from "@/components/reader/Book";
 import { CuttingMat, MAT_TOP_M } from "@/components/reader/CuttingMat";
 
-const CAMERA_REST: [number, number, number] = [0, 0.36, 0.26];
+// About 22° off vertical at the old viewing distance: close enough to overhead that the far
+// pages don't slant away into blurry mipmaps, tilted enough to still read as a book.
+const CAMERA_REST: [number, number, number] = [0, 0.41, 0.17];
 
 type Vec3 = [number, number, number];
 
@@ -43,7 +45,7 @@ type ReaderSceneProps = {
   leafCount: number;
   pageImage?: (side: number) => HTMLCanvasElement | undefined;
   stapled?: boolean;
-  // What the book sits on: the cutting mat, or nothing but its own soft shadow.
+  // What the book sits on: nothing but its own soft shadow (default), or the cutting mat.
   surface?: "mat" | "none";
   // Where the camera settles. Defaults to the reader's three-quarter view.
   cameraRest?: Vec3;
@@ -57,7 +59,7 @@ export default function ReaderScene({
   leafCount,
   pageImage,
   stapled = true,
-  surface = "mat",
+  surface = "none",
   cameraRest = CAMERA_REST,
   version = "",
 }: ReaderSceneProps) {
