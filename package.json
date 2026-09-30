@@ -34,6 +34,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.2.40",
     "@ja3dan/eslint-plugin": "^0.1.0",
     "@playwright/test": "1.61.1",
     "@tailwindcss/postcss": "^4",

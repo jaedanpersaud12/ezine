@@ -8,13 +8,15 @@ import { Row, Section } from "@/components/editor/fields/Section";
 import { Button } from "@/components/ui/button";
 import { fillPage, fillSpread } from "@/lib/editor/align";
 import { effectiveDpi, LOW_DPI, spreadGeometry, type ImageFilters, type ImageLayer } from "@/lib/zine/schema";
-import { useEditorStore } from "@/stores/editor";
+import { selectFailedUploads, useEditorStore } from "@/stores/editor";
 import { cn } from "@/lib/utils";
 
 export function ImageSection({ layer }: { layer: ImageLayer }) {
   const zine = useEditorStore((s) => s.zine);
   const spreadIndex = useEditorStore((s) => s.spreadIndex);
   const patchLayers = useEditorStore((s) => s.patchLayers);
+  const uploadFailed = useEditorStore((s) => selectFailedUploads(s).includes(layer.assetId));
+  const missing = useEditorStore((s) => s.saveError?.reason === "missing");
   if (!zine) return null;
 
   const dpi = Math.round(effectiveDpi(layer));
@@ -39,6 +41,16 @@ export function ImageSection({ layer }: { layer: ImageLayer }) {
         </span>
       }
     >
+      {uploadFailed ? (
+        <div role="alert" className="mb-2 flex items-center justify-between gap-2 rounded-md bg-destructive-subtle py-1 pr-1 pl-2.5 text-xs text-destructive">
+          {missing ? "This image is missing. Delete or replace it to keep saving." : "This image didn't upload."}
+          {missing ? null : (
+            <Button variant="ghost" size="sm" onClick={() => useEditorStore.getState().retrySave()}>
+              Retry
+            </Button>
+          )}
+        </div>
+      ) : null}
       <div className={cn("grid gap-1.5", facing ? "grid-cols-2" : "grid-cols-1")}>
         <Button
           variant="secondary"

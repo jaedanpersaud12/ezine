@@ -1,0 +1,31 @@
+# Local database for `next dev` and the Playwright suite (see AGENTS.md). Postgres plus Neon's
+# HTTP proxy, so lib/server/db.ts talks to it with the same driver it uses in production.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: main
+    ports:
+      - "127.0.0.1:54330:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 15
+
+  neon-proxy:
+    image: ghcr.io/timowilhelm/local-neon-http-proxy:main
+    environment:
+      PG_CONNECTION_STRING: postgres://postgres:postgres@db:5432/main
+    ports:
+      - "127.0.0.1:4445:4444"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:

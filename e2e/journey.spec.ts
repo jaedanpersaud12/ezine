@@ -15,7 +15,8 @@ test("landing → start a zine → it saves in this browser → continue it from
   await expect(page.getByText("Saved in this browser")).toBeVisible();
 
   await page.getByRole("link", { name: "Home" }).click();
-  await expect(page).toHaveURL(/\/$/);
+  // With the whole suite running, the dev server can take a while to serve the landing page.
+  await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
   await page.getByRole("link", { name: "Continue your zine" }).click();
   await expect(page.getByRole("textbox", { name: "Zine title" })).toHaveValue("Night Shift");
 });
