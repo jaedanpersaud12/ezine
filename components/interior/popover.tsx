@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { FloatingPortal } from "@/components/interior/floating-portal";
 
 import {
   useCallback,
@@ -321,58 +322,61 @@ export function Popover({
       >
         {trigger}
       </button>
-      <AnimatePresence>
-        {open ? (
-          <div
-            key="popover"
-            ref={floatingRef}
-            className="fixed left-0 top-0 z-50"
-            onBlurCapture={(event) => {
-              const next = event.relatedTarget as Node | null;
-              if (!next) return;
-              if (panelRef.current?.contains(next) || anchorRef.current?.contains(next)) return;
-              setOpen(false);
-            }}
-          >
-            <motion.div
-              ref={panelRef}
-              id={id}
-              role="dialog"
-              aria-label={label}
-              tabIndex={-1}
-              initial={
-                reduced ? { opacity: 0 } : { opacity: 0, scale: 0.95, ...FROM[at] }
-              }
-              animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-              exit={
-                reduced
-                  ? { opacity: 0, transition: { duration: 0.1 } }
-                  : {
-                      opacity: 0,
-                      scale: 0.97,
-                      transition: { duration: 0.13, ease: EASE },
-                    }
-              }
-              transition={
-                reduced
-                  ? { duration: 0 }
-                  : { ...CROSSFADE, opacity: { duration: 0.14, ease: EASE } }
-              }
-              className={`relative rounded-[11px] border border-border bg-popover p-3 shadow-popover focus-visible:outline-none    ${className}`}
+      {/* Portaled: a transformed ancestor would otherwise turn position: fixed into absolute. */}
+      <FloatingPortal>
+        <AnimatePresence>
+          {open ? (
+            <div
+              key="popover"
+              ref={floatingRef}
+              className="fixed left-0 top-0 z-50"
+              onBlurCapture={(event) => {
+                const next = event.relatedTarget as Node | null;
+                if (!next) return;
+                if (panelRef.current?.contains(next) || anchorRef.current?.contains(next)) return;
+                setOpen(false);
+              }}
             >
-              <span
-                ref={arrowRef}
-                aria-hidden
-                style={{ width: arrowSize, height: arrowSize, transform: "rotate(45deg)" }}
-                className={`absolute block bg-popover  border-border  ${ARROW_EDGE[at]}`}
-              />
-              <div ref={contentRef} className="relative overflow-y-auto overscroll-contain">
-                {children}
-              </div>
-            </motion.div>
-          </div>
-        ) : null}
-      </AnimatePresence>
+              <motion.div
+                ref={panelRef}
+                id={id}
+                role="dialog"
+                aria-label={label}
+                tabIndex={-1}
+                initial={
+                  reduced ? { opacity: 0 } : { opacity: 0, scale: 0.95, ...FROM[at] }
+                }
+                animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                exit={
+                  reduced
+                    ? { opacity: 0, transition: { duration: 0.1 } }
+                    : {
+                        opacity: 0,
+                        scale: 0.97,
+                        transition: { duration: 0.13, ease: EASE },
+                      }
+                }
+                transition={
+                  reduced
+                    ? { duration: 0 }
+                    : { ...CROSSFADE, opacity: { duration: 0.14, ease: EASE } }
+                }
+                className={`relative rounded-[11px] border border-border bg-popover p-3 shadow-popover focus-visible:outline-none    ${className}`}
+              >
+                <span
+                  ref={arrowRef}
+                  aria-hidden
+                  style={{ width: arrowSize, height: arrowSize, transform: "rotate(45deg)" }}
+                  className={`absolute block bg-popover  border-border  ${ARROW_EDGE[at]}`}
+                />
+                <div ref={contentRef} className="relative overflow-y-auto overscroll-contain">
+                  {children}
+                </div>
+              </motion.div>
+            </div>
+          ) : null}
+        </AnimatePresence>
+      </FloatingPortal>
     </>
   );
 }

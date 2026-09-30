@@ -50,10 +50,13 @@ export function useEditorShortcuts(): void {
             s.select(layers.filter((l) => !l.locked && !l.hidden).map((l) => l.id));
             return true;
           }
+          if (e.altKey && e.key === "ArrowLeft") return s.moveSelectedToSpread(-1), true;
+          if (e.altKey && e.key === "ArrowRight") return s.moveSelectedToSpread(1), true;
           if (key === "]") return s.arrangeSelected(e.shiftKey ? "front" : "forward"), true;
           if (key === "[") return s.arrangeSelected(e.shiftKey ? "back" : "backward"), true;
           if (key === "l" && e.shiftKey) return s.patchLayers(s.selection, { locked: true }), true;
           if (key === "h" && e.shiftKey) return s.patchLayers(s.selection, { hidden: true }), true;
+          if (key === ";" && e.shiftKey) return s.toggleSnapping(), true;
           if (key === ";") return s.toggleGuides(), true;
           if (key === "0") return stageAction("actual"), true;
           if (key === "=" || key === "+") return stageAction("zoom-in"), true;

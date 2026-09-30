@@ -71,7 +71,7 @@ export function TextSection({ layer }: { layer: TextLayer }) {
   };
 
   return (
-    <Section title="Type">
+    <Section id="type" title="Type">
       <Dropdown
         label="Font"
         items={fontItems}

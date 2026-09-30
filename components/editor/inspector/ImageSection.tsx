@@ -3,7 +3,7 @@
 import { Contrast, FlipHorizontal, Maximize2, SunMedium } from "lucide-react";
 import { SliderDetents } from "@/components/interior/slider-detents";
 import { ColorField } from "@/components/editor/fields/ColorField";
-import { IconToggle } from "@/components/editor/fields/IconToggle";
+import { FilterToggle } from "@/components/editor/fields/FilterToggle";
 import { Row, Section } from "@/components/editor/fields/Section";
 import { Button } from "@/components/ui/button";
 import { fillPage, fillSpread } from "@/lib/editor/align";
@@ -25,6 +25,7 @@ export function ImageSection({ layer }: { layer: ImageLayer }) {
 
   return (
     <Section
+      id="image"
       title="Image"
       action={
         <span
@@ -57,18 +58,17 @@ export function ImageSection({ layer }: { layer: ImageLayer }) {
         ) : null}
       </div>
 
-      <div className="flex items-center gap-1">
-        <IconToggle label="Black & white" pressed={layer.filters.grayscale} onPressedChange={(grayscale) => setFilters({ grayscale })}>
+      <div className="grid grid-cols-2 gap-1.5">
+        <FilterToggle label="B&W" pressed={layer.filters.grayscale} onPressedChange={(grayscale) => setFilters({ grayscale })}>
           <Contrast />
-        </IconToggle>
-        <IconToggle label="Invert" pressed={layer.filters.invert} onPressedChange={(invert) => setFilters({ invert })}>
+        </FilterToggle>
+        <FilterToggle label="Invert" pressed={layer.filters.invert} onPressedChange={(invert) => setFilters({ invert })}>
           <SunMedium />
-        </IconToggle>
-        <span className="ml-auto text-xs text-muted-foreground">Ink tint</span>
-        <div className="w-28">
-          <ColorField label="Ink tint" nullable value={layer.filters.tint} onChange={(tint) => setFilters({ tint }, "tint")} />
-        </div>
+        </FilterToggle>
       </div>
+      <Row label="Ink tint">
+        <ColorField label="Ink tint" nullable value={layer.filters.tint} onChange={(tint) => setFilters({ tint }, "tint")} />
+      </Row>
 
       <SliderDetents
         label="Brightness"

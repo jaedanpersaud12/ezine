@@ -1,6 +1,7 @@
 import { builtInFont, DEFAULT_FONT_ID } from "@/lib/zine/fonts";
 import { newId } from "@/lib/zine/create";
 import type { Asset, Zine } from "@/lib/zine/schema";
+import { fetchCloudBlob } from "@/lib/editor/cloud";
 import { getBlob, putBlob } from "@/lib/editor/persist";
 
 // Runtime side of assets: blob URLs for images and registered FontFaces for uploaded fonts.
@@ -9,10 +10,15 @@ const urls = new Map<string, string>();
 const fontsReady = new Map<string, Promise<void>>();
 const uploadsRegistered = new Map<string, Promise<void>>();
 
+// This device's copy first, then the account's.
+async function loadBlob(id: string): Promise<Blob | null> {
+  return (await getBlob(id)) ?? (await fetchCloudBlob(id));
+}
+
 export async function assetUrl(asset: Asset): Promise<string | null> {
   const cached = urls.get(asset.id);
   if (cached) return cached;
-  const blob = await getBlob(asset.id);
+  const blob = await loadBlob(asset.id);
   if (!blob) return null;
   const url = URL.createObjectURL(blob);
   urls.set(asset.id, url);
@@ -53,7 +59,7 @@ function registerUploadedFont(asset: Asset): Promise<void> {
   let registered = uploadsRegistered.get(asset.id);
   if (!registered) {
     registered = (async () => {
-      const blob = await getBlob(asset.id);
+      const blob = await loadBlob(asset.id);
       if (!blob || !asset.family) return;
       const face = new FontFace(asset.family, await blob.arrayBuffer());
       await face.load();

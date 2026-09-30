@@ -61,7 +61,7 @@ export function ArrangeSection({ layers }: { layers: Layer[] }) {
   };
 
   return (
-    <Section title={single ? "Layout" : `${layers.length} layers`}>
+    <Section id="layout" title={single ? "Layout" : `${layers.length} layers`}>
       <div className="flex justify-between">
         {ALIGN.map((a) => (
           <button

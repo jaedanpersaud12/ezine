@@ -85,7 +85,7 @@ export function NumberField({
       )}
     >
       <span
-        className="flex h-full min-w-6 cursor-ew-resize select-none items-center justify-center pl-2 text-[11px] font-medium text-subtle-foreground group-hover:text-muted-foreground"
+        className="flex h-full min-w-6 shrink-0 cursor-ew-resize select-none items-center justify-center pr-0.5 pl-2 text-[11px] font-medium text-subtle-foreground group-hover:text-muted-foreground"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

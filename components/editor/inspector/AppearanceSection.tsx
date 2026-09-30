@@ -22,7 +22,7 @@ export function AppearanceSection({ layers }: { layers: Layer[] }) {
   const first = layers[0];
 
   return (
-    <Section title="Appearance">
+    <Section id="appearance" title="Appearance">
       <SliderDetents
         label="Opacity"
         value={Math.round(first.opacity * 100)}

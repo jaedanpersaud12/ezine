@@ -53,6 +53,7 @@ export function commands(): Command[] {
     { id: "next", label: "Next spread", shortcut: ["⇟"], run: () => s().setSpread(s().spreadIndex + 1) },
     { id: "prev", label: "Previous spread", shortcut: ["⇞"], run: () => s().setSpread(s().spreadIndex - 1) },
     { id: "guides", label: "Toggle guides", keywords: "bleed trim safe margin", shortcut: ["⌘", ";"], run: () => s().toggleGuides() },
+    { id: "snapping", label: "Toggle snapping", keywords: "magnet smart guides align", shortcut: ["⇧", "⌘", ";"], run: () => s().toggleSnapping() },
     { id: "fit", label: "Zoom to fit", shortcut: ["⇧", "1"], run: () => stageAction("fit") },
     { id: "actual", label: "Zoom to 100%", shortcut: ["⌘", "0"], run: () => stageAction("actual") },
     { id: "preview", label: "Preview in 3D", keywords: "flip book read", shortcut: ["⌘", "↵"], run: () => s().setPreviewOpen(true) },

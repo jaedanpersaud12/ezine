@@ -4,10 +4,11 @@ import { Minus, Plus } from "lucide-react";
 import { Dropdown } from "@/components/interior/dropdown";
 import { ColorField } from "@/components/editor/fields/ColorField";
 import { NumberField } from "@/components/editor/fields/NumberField";
+import { FoliosSection } from "@/components/editor/inspector/FoliosSection";
 import { Row, Section } from "@/components/editor/fields/Section";
 import { TRIMS, type TrimId } from "@/lib/book/trim";
 import { pageCount, spreadLabel } from "@/lib/zine/schema";
-import { removablePair, useEditorStore } from "@/stores/editor";
+import { MAX_PAGES, useEditorStore } from "@/stores/editor";
 
 const CUSTOM = "custom";
 const TRIM_ITEMS = [
@@ -24,16 +25,14 @@ export function SpreadInspector() {
   const zine = useEditorStore((s) => s.zine);
   const spreadIndex = useEditorStore((s) => s.spreadIndex);
   const change = useEditorStore((s) => s.change);
-  const addPages = useEditorStore((s) => s.addPages);
-  const removePages = useEditorStore((s) => s.removePages);
+  const setPageCount = useEditorStore((s) => s.setPageCount);
   if (!zine) return null;
 
   const spread = zine.spreads[spreadIndex];
-  const canRemove = removablePair(zine, spreadIndex) !== null;
 
   return (
     <>
-      <Section title={spreadLabel(zine, spreadIndex)}>
+      <Section id="spread" title={spreadLabel(zine, spreadIndex)}>
         <Row label="Colour">
           <ColorField
             label="Spread colour"
@@ -54,7 +53,7 @@ export function SpreadInspector() {
         </p>
       </Section>
 
-      <Section title="Book">
+      <Section id="book" title="Book">
         <Row label="Trim">
           <Dropdown
             label="Trim size"
@@ -157,33 +156,46 @@ export function SpreadInspector() {
           />
         </div>
         <Row label="Pages">
-          <div className="flex items-center justify-between rounded-md bg-muted/70 p-0.5">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1">
             <button
               type="button"
               aria-label="Remove 4 pages"
-              title={canRemove ? "Remove this sheet (4 pages)" : "Open an inside spread to remove pages"}
-              disabled={!canRemove}
-              onClick={() => removePages(spreadIndex)}
-              className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5"
+              title="Remove the last sheet (4 pages)"
+              disabled={pageCount(zine) <= 4}
+              onClick={() => setPageCount(pageCount(zine) - 4)}
+              className="flex size-7 items-center justify-center rounded-md bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5"
             >
               <Minus />
             </button>
-            <span className="font-mono text-xs tabular-nums">{pageCount(zine)}</span>
+            <NumberField
+              label="#"
+              ariaLabel="Page count"
+              value={pageCount(zine)}
+              min={4}
+              max={MAX_PAGES}
+              step={4}
+              precision={0}
+              scrubPx={12}
+              onChange={setPageCount}
+            />
             <button
               type="button"
               aria-label="Add 4 pages"
-              title="Add a sheet (4 pages) after this spread"
-              onClick={addPages}
-              className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground [&_svg]:size-3.5"
+              title="Add a sheet (4 pages) before the back cover"
+              disabled={pageCount(zine) >= MAX_PAGES}
+              onClick={() => setPageCount(pageCount(zine) + 4)}
+              className="flex size-7 items-center justify-center rounded-md bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5"
             >
               <Plus />
             </button>
           </div>
         </Row>
         <p className="text-[11px] leading-relaxed text-subtle-foreground">
-          Saddle stitched, so pages come in fours: one folded sheet each.
+          Saddle stitched, so pages come in fours (one folded sheet each); other numbers round to the nearest four. Pages are added or removed at the back.
         </p>
       </Section>
+
+      <FoliosSection />
     </>
   );
 }

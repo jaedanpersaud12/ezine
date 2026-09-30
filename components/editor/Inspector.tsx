@@ -13,13 +13,14 @@ export function Inspector() {
 
   return (
     <div className="scroll-slim min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-      <AnimatePresence mode="popLayout" initial={false}>
+      <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={key}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, transition: { duration: 0.08 } }}
-          transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+          // Opacity only: a transform here would re-anchor anything position: fixed inside it.
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { duration: 0.06 } }}
+          transition={{ duration: 0.14 }}
         >
           {layers.length ? <LayerInspector layers={layers} /> : <SpreadInspector />}
         </motion.div>

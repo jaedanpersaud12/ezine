@@ -1,6 +1,7 @@
 import {
   Ellipse,
   FabricImage,
+  FabricText,
   type FabricObject,
   filters,
   Line,
@@ -12,6 +13,7 @@ import {
   util,
 } from "fabric";
 import { assetUrl, ensureFont, resolveFontFamily } from "@/lib/editor/assets";
+import { foliosOf, type FolioItem } from "@/lib/zine/folios";
 import type { DrawLayer, ImageFilters, ImageLayer, Layer, ShapeLayer, TextLayer, Zine } from "@/lib/zine/schema";
 
 // The bridge between document layers (mm) and Fabric objects. Fabric works directly in mm: the
@@ -236,4 +238,27 @@ function normaliseAngle(a: number): number {
 function round(n: number, dp: number): number {
   const f = 10 ** dp;
   return Math.round(n * f) / f;
+}
+
+// Page numbers: plain, locked text above the artwork. Not layers, so they can't be selected.
+export async function createFolioObjects(zine: Zine, items: FolioItem[]): Promise<FabricObject[]> {
+  if (!items.length) return [];
+  const f = foliosOf(zine);
+  await ensureFont(zine, f.fontFamily, 400, false);
+  return items.map(
+    (item) =>
+      new FabricText(item.text, {
+        left: item.x,
+        top: item.y,
+        originX: item.align,
+        originY: "bottom",
+        fontFamily: resolveFontFamily(zine, f.fontFamily),
+        fontSize: f.sizePt * PT_TO_MM,
+        fill: f.color,
+        strokeWidth: 0,
+        selectable: false,
+        evented: false,
+        objectCaching: false,
+      }),
+  );
 }

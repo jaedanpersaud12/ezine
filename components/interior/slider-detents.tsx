@@ -303,7 +303,7 @@ export function SliderDetents({
 
   return (
     <div className={`w-full select-none ${className}`}>
-      <div className="mb-2.5 flex items-baseline justify-between gap-3">
+      <div className="mb-1 flex items-baseline justify-between gap-3">
         <span
           id={labelId}
           className="text-[12.5px] text-muted-foreground"
@@ -336,7 +336,7 @@ export function SliderDetents({
       <div
         ref={trackRef}
         {...trackProps}
-        className={`relative h-9 w-full rounded-[9px] outline-none focus-visible:bg-ring/10 focus-visible:ring-1 ring-inset ring-ring   ${
+        className={`relative h-7 w-full rounded-[7px] outline-none focus-visible:bg-ring/10 focus-visible:ring-1 ring-inset ring-ring   ${
           disabled
             ? "pointer-events-none opacity-50"
             : dragging
@@ -344,7 +344,7 @@ export function SliderDetents({
               : "cursor-grab"
         }`}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-[9px] h-[10px] overflow-hidden rounded-[5px] bg-muted">
+        <div className="pointer-events-none absolute inset-x-0 top-[12px] h-[4px] overflow-hidden rounded-full bg-muted">
           <div
             className="absolute inset-y-0"
             style={{ left: THUMB / 2, right: THUMB / 2 }}
@@ -353,7 +353,7 @@ export function SliderDetents({
               className="absolute inset-y-0 left-0 right-0"
               style={{ x: offset }}
             >
-              <div className="absolute inset-y-0 right-full w-[2000px] bg-primary" />
+              <div className="absolute inset-y-0 right-full w-[2000px] bg-foreground/70" />
             </motion.div>
           </div>
         </div>
@@ -366,7 +366,7 @@ export function SliderDetents({
             <span
               key={String(d.value)}
               aria-hidden
-              className="absolute top-[26px] block h-[5px] w-[2px] -translate-x-1/2 bg-foreground/35"
+              className="absolute top-[20px] block h-[3px] w-px -translate-x-1/2 bg-foreground/25"
               style={{
                 left: span > 0 ? `${((d.value - min) / span) * 100}%` : "0%",
               }}
@@ -382,10 +382,10 @@ export function SliderDetents({
             style={{ x: offset }}
           >
             <motion.div
-              className="absolute top-[4px] h-[20px] w-[18px] rounded-[6px] border-2 border-border bg-primary"
-              style={{ marginLeft: -THUMB / 2 }}
+              className="absolute top-[6px] size-4 rounded-full border border-foreground/20 bg-background shadow-border"
+              style={{ marginLeft: -8 }}
               initial={false}
-              animate={{ scale: dragging ? 1.08 : 1 }}
+              animate={{ scale: dragging ? 1.15 : 1 }}
               transition={reduced ? INSTANT : GRAB}
             />
           </motion.div>

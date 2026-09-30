@@ -3,7 +3,9 @@
 import { useState, type MouseEvent } from "react";
 import { Reorder } from "motion/react";
 import { Eye, EyeOff, Image as ImageIcon, Lock, LockOpen, PenLine, Shapes, Type } from "lucide-react";
+import { ContextMenu } from "@/components/interior/context-menu";
 import { useReorderList } from "@/components/interior/reorder-list";
+import { useLayerMenu } from "@/hooks/useLayerMenu";
 import type { Layer } from "@/lib/zine/schema";
 import { selectCurrentSpread, useEditorStore } from "@/stores/editor";
 import { cn } from "@/lib/utils";
@@ -25,6 +27,8 @@ export function LayersPanel() {
   const patchLayers = useEditorStore((s) => s.patchLayers);
   const reorderLayers = useEditorStore((s) => s.reorderLayers);
   const [dragOrder, setDragOrder] = useState<Layer[] | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const menu = useLayerMenu();
 
   const stacked = [...(spread?.layers ?? [])].reverse();
   const items = dragOrder ?? stacked;
@@ -56,13 +60,8 @@ export function LayersPanel() {
           Nothing here yet. Drop images on the page, or pick a tool below.
         </p>
       ) : (
-        <Reorder.Group
-          axis="y"
-          values={items}
-          onReorder={setDragOrder}
-          aria-label="Layers"
-          className="scroll-slim min-h-0 flex-1 overflow-y-auto px-2 pb-2"
-        >
+        <ContextMenu items={menu} label="Layer actions" className="scroll-slim min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        <Reorder.Group axis="y" values={items} onReorder={setDragOrder} aria-label="Layers">
           {items.map((layer) => {
             const active = selection.includes(layer.id);
             const lifted = list.grabbed === layer.id || list.dragging === layer.id;
@@ -78,6 +77,11 @@ export function LayersPanel() {
                 aria-selected={active}
                 aria-label={layer.name}
                 onClick={(e) => onRowClick(e, layer.id)}
+                onContextMenu={() => {
+                  // Right-click acts on the row under the pointer, like the canvas.
+                  if (!selection.includes(layer.id)) select([layer.id]);
+                }}
+                onDoubleClick={() => setRenaming(layer.id)}
                 className={cn(
                   "group relative flex h-8 cursor-default items-center gap-2 rounded-md pr-1 pl-2 text-[13px] outline-none select-none focus-visible:ring-1 focus-visible:ring-ring",
                   active ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-muted",
@@ -88,7 +92,31 @@ export function LayersPanel() {
                 <span className={cn("shrink-0 [&_svg]:size-3.5", active ? "text-foreground" : "text-subtle-foreground")}>
                   {KIND_ICON[layer.kind]}
                 </span>
-                <span className="min-w-0 flex-1 truncate">{layer.name}</span>
+                {renaming === layer.id ? (
+                  <input
+                    autoFocus
+                    aria-label="Layer name"
+                    defaultValue={layer.name}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={(e) => {
+                      const name = e.target.value.trim();
+                      if (name && name !== layer.name) patchLayers([layer.id], { name });
+                      setRenaming(null);
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === "Enter") e.currentTarget.blur();
+                      if (e.key === "Escape") setRenaming(null);
+                    }}
+                    className="h-6 min-w-0 flex-1 rounded bg-background px-1.5 text-[13px] text-foreground outline-none ring-1 ring-ring"
+                  />
+                ) : (
+                  <span className="min-w-0 flex-1 truncate" title="Double-click to rename">
+                    {layer.name}
+                  </span>
+                )}
                 <button
                   type="button"
                   aria-label={layer.locked ? "Unlock" : "Lock"}
@@ -121,6 +149,7 @@ export function LayersPanel() {
             );
           })}
         </Reorder.Group>
+        </ContextMenu>
       )}
       <span role="status" aria-live="polite" className="sr-only">
         {list.spoken}

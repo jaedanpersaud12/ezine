@@ -11,7 +11,7 @@ export function DrawSection({ layer }: { layer: DrawLayer }) {
   const set = (patch: Partial<DrawLayer>, key: string): void => patchLayers([layer.id], patch, { key: `${key}:${layer.id}` });
 
   return (
-    <Section title="Stroke">
+    <Section id="stroke" title="Stroke">
       <Row label="Colour">
         <ColorField label="Stroke colour" value={layer.stroke} onChange={(stroke) => stroke && set({ stroke }, "stroke")} />
       </Row>

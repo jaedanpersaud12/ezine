@@ -1,6 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { FloatingPortal } from "@/components/interior/floating-portal";
+import { useAnchorRect } from "@/hooks/useAnchorRect";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -57,6 +59,7 @@ export function useDropdown({
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
@@ -147,7 +150,8 @@ export function useDropdown({
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) close(false);
+      const t = e.target as Node;
+      if (!rootRef.current?.contains(t) && !menuRef.current?.contains(t)) close(false);
     };
     const onWindowBlur = () => close(false);
     document.addEventListener("pointerdown", onDown, true);
@@ -256,6 +260,7 @@ export function useDropdown({
     selectedItem: selectedIndex >= 0 ? items[selectedIndex] : null,
     itemId,
     rootRef,
+    menuRef,
     triggerProps,
     listProps,
     getItemProps,
@@ -296,12 +301,27 @@ export function Dropdown({
     selectedIndex,
     selectedItem,
     rootRef,
+    menuRef,
     triggerProps,
     listProps,
     getItemProps,
   } = useDropdown({ items, value, defaultValue, onChange, disabled });
 
   const cell = reduced ? NONE : CELL;
+
+  // The menu floats in a portal at the trigger's position; it flips above when there's no room below.
+  const anchor = useAnchorRect(triggerProps.ref, open);
+  const below = anchor ? window.innerHeight - anchor.bottom : 0;
+  const flip = anchor ? below < 250 && anchor.top > below : false;
+  const place: React.CSSProperties | undefined = anchor
+    ? {
+        position: "fixed",
+        left: Math.min(anchor.left, window.innerWidth - Math.max(anchor.width, 224) - 8),
+        minWidth: anchor.width,
+        ...(flip ? { bottom: window.innerHeight - anchor.top + 6 } : { top: anchor.bottom + 6 }),
+        transformOrigin: flip ? "bottom left" : "top left",
+      }
+    : undefined;
 
   return (
     <div ref={rootRef} className={`relative inline-block text-left ${className}`}>
@@ -333,101 +353,104 @@ export function Dropdown({
           />
         </motion.svg>
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: -8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{
-              opacity: 0,
-              scale: 0.97,
-              y: -6,
-              transition: reduced ? NONE : { duration: 0.12, ease: EXIT },
-            }}
-            transition={
-              reduced
-                ? NONE
-                : { ...OPEN, opacity: { duration: 0.12, ease: EASE } }
-            }
-            style={{ transformOrigin: "top left" }}
-            className={cn("absolute left-0 top-[calc(100%+6px)] z-50 min-w-[224px] whitespace-nowrap rounded-[11px] border border-border bg-popover p-[5px] shadow-popover", menuClassName)}
-          >
-            <ul
-              {...listProps}
-              aria-label={label}
-              className="relative max-h-[216px] overflow-y-auto outline-none [scrollbar-gutter:stable]"
+      <FloatingPortal>
+        <AnimatePresence>
+          {open && place && (
+            <motion.div
+              ref={menuRef}
+              initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: flip ? 8 : -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{
+                opacity: 0,
+                scale: 0.97,
+                y: -6,
+                transition: reduced ? NONE : { duration: 0.12, ease: EXIT },
+              }}
+              transition={
+                reduced
+                  ? NONE
+                  : { ...OPEN, opacity: { duration: 0.12, ease: EASE } }
+              }
+              style={place}
+              className={cn("z-50 min-w-[224px] whitespace-nowrap rounded-[11px] border border-border bg-popover p-[5px] shadow-popover", menuClassName)}
             >
-              <motion.span
-                aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 h-8 rounded-[7px] bg-muted"
-                initial={false}
-                animate={{
-                  y: activeIndex < 0 ? 0 : activeIndex * ROW_H,
-                  opacity: activeIndex < 0 ? 0 : 1,
-                }}
-                transition={
-                  reduced
-                    ? NONE
-                    : { ...SLIDE, opacity: { duration: 0.1, ease: EASE } }
-                }
-              />
-              {items.map((item, i) => {
-                const active = i === activeIndex && !item.disabled;
-                const picked = i === selectedIndex;
-                return (
-                  <li
-                    key={item.value}
-                    {...getItemProps(i)}
-                    className={`relative flex h-8 cursor-default select-none items-center rounded-[7px] px-2.5 text-[13px] ${
-                      item.disabled
-                        ? "text-muted-foreground/70"
-                        : active
-                          ? "text-foreground"
-                          : "text-foreground"
-                    }`}
-                  >
-                    <span className="relative flex min-w-0 flex-1 items-center gap-3">
-                      <span className="truncate">{item.label}</span>
-                      {item.hint ? (
-                        <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted-foreground">
-                          {item.hint}
-                        </span>
-                      ) : null}
-                    </span>
-                    <motion.span
-                      aria-hidden
-                      initial={false}
-                      animate={{ opacity: picked ? 1 : 0, scale: picked ? 1 : 0.7 }}
-                      transition={cell}
-                      className="relative ml-2 flex size-[14px] shrink-0 items-center justify-center"
+              <ul
+                {...listProps}
+                aria-label={label}
+                className="relative max-h-[216px] overflow-y-auto outline-none [scrollbar-gutter:stable]"
+              >
+                <motion.span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 top-0 h-8 rounded-[7px] bg-muted"
+                  initial={false}
+                  animate={{
+                    y: activeIndex < 0 ? 0 : activeIndex * ROW_H,
+                    opacity: activeIndex < 0 ? 0 : 1,
+                  }}
+                  transition={
+                    reduced
+                      ? NONE
+                      : { ...SLIDE, opacity: { duration: 0.1, ease: EASE } }
+                  }
+                />
+                {items.map((item, i) => {
+                  const active = i === activeIndex && !item.disabled;
+                  const picked = i === selectedIndex;
+                  return (
+                    <li
+                      key={item.value}
+                      {...getItemProps(i)}
+                      className={`relative flex h-8 cursor-default select-none items-center rounded-[7px] px-2.5 text-[13px] ${
+                        item.disabled
+                          ? "text-muted-foreground/70"
+                          : active
+                            ? "text-foreground"
+                            : "text-foreground"
+                      }`}
                     >
-                      <svg viewBox="0 0 14 14" className="size-[14px]">
-                        <path
-                          d="M3 7.4 5.8 10.2 11 4.4"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </motion.span>
-                  </li>
-                );
-              })}
+                      <span className="relative flex min-w-0 flex-1 items-center gap-3">
+                        <span className="truncate">{item.label}</span>
+                        {item.hint ? (
+                          <span className="ml-auto shrink-0 font-mono text-[10.5px] text-muted-foreground">
+                            {item.hint}
+                          </span>
+                        ) : null}
+                      </span>
+                      <motion.span
+                        aria-hidden
+                        initial={false}
+                        animate={{ opacity: picked ? 1 : 0, scale: picked ? 1 : 0.7 }}
+                        transition={cell}
+                        className="relative ml-2 flex size-[14px] shrink-0 items-center justify-center"
+                      >
+                        <svg viewBox="0 0 14 14" className="size-[14px]">
+                          <path
+                            d="M3 7.4 5.8 10.2 11 4.4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </motion.span>
+                    </li>
+                  );
+                })}
 
-              {items.length === 0 && (
-                <li
-                  role="presentation"
-                  className="flex h-8 items-center px-2.5 text-[13px] text-muted-foreground"
-                >
-                  {emptyLabel}
-                </li>
-              )}
-            </ul>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                {items.length === 0 && (
+                  <li
+                    role="presentation"
+                    className="flex h-8 items-center px-2.5 text-[13px] text-muted-foreground"
+                  >
+                    {emptyLabel}
+                  </li>
+                )}
+              </ul>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </FloatingPortal>
     </div>
   );
 }

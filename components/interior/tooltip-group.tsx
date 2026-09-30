@@ -10,6 +10,8 @@ import {
   useSyncExternalStore,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { FloatingPortal } from "@/components/interior/floating-portal";
+import { useAnchorRect } from "@/hooks/useAnchorRect";
 
 const LEAVE = [0.4, 0, 1, 1] as const;
 
@@ -420,6 +422,9 @@ export function Tooltip({
     skipDelay,
   });
   const reduced = useReducedMotion();
+  // The bubble floats in a portal over the trigger, so it never widens or scrolls its container.
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const rect = useAnchorRect(anchorRef, open);
 
   const described = [children.props["aria-describedby"], open ? tooltipId : null]
     .filter(Boolean)
@@ -451,16 +456,19 @@ export function Tooltip({
   const lift = side === "top" ? 7 : -7;
 
   return (
-    <span className={`relative inline-flex ${className}`}>
+    <span ref={anchorRef} className={`relative inline-flex ${className}`}>
       {trigger}
 
+      <FloatingPortal>
       <span
         aria-hidden={!open}
-        className="pointer-events-none absolute left-1/2 z-50 flex w-0 justify-center"
+        className="pointer-events-none fixed z-50 flex w-0 justify-center"
         style={
-          side === "top"
-            ? { bottom: "calc(100% + 7px)" }
-            : { top: "calc(100% + 7px)" }
+          !rect
+            ? { display: "none" }
+            : side === "top"
+              ? { left: rect.left + rect.width / 2, bottom: window.innerHeight - rect.top + 7 }
+              : { left: rect.left + rect.width / 2, top: rect.bottom + 7 }
         }
       >
         <AnimatePresence>
@@ -521,6 +529,7 @@ export function Tooltip({
           )}
         </AnimatePresence>
       </span>
+      </FloatingPortal>
     </span>
   );
 }

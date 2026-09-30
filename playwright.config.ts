@@ -4,6 +4,8 @@ const PORT = Number(process.env.PORT ?? 3217);
 
 export default defineConfig({
   testDir: "e2e",
+  // Feel tests replay paced, hand-speed drags, so they run slower than typical e2e.
+  timeout: 60_000,
   fullyParallel: true,
   reporter: [["list"]],
   use: {

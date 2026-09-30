@@ -7,7 +7,7 @@ import type { Spread, Zine } from "@/lib/zine/schema";
 const THUMB_PX_PER_MM = 0.9;
 const DEBOUNCE_MS = 350;
 
-type Entry = { spread: Spread; paper: string; trim: string; url: string };
+type Entry = { spread: Spread; paper: string; trim: string; folios: string; url: string };
 
 // Data-URL thumbnails per spread id, re-rendered only for spreads whose content changed.
 export function useSpreadThumbnails(zine: Zine | null): Map<string, string> {
@@ -18,16 +18,19 @@ export function useSpreadThumbnails(zine: Zine | null): Map<string, string> {
     if (!zine) return;
     let cancelled = false;
     const trim = `${zine.trim.widthMm}x${zine.trim.heightMm}`;
+    // Page numbers depend on settings and position in the book, not just the spread's own content.
+    const foliosKey = (i: number): string => JSON.stringify([zine.folios ?? null, i, zine.spreads.length]);
 
     const timer = window.setTimeout(async () => {
       for (let i = 0; i < zine.spreads.length; i++) {
         if (cancelled) return;
         const spread = zine.spreads[i];
         const hit = cache.current.get(spread.id);
-        if (hit && hit.spread === spread && hit.paper === zine.paper.color && hit.trim === trim) continue;
+        const folios = foliosKey(i);
+        if (hit && hit.spread === spread && hit.paper === zine.paper.color && hit.trim === trim && hit.folios === folios) continue;
         try {
           const canvas = await renderSpread(zine, i, { pxPerMm: THUMB_PX_PER_MM, bleed: false });
-          cache.current.set(spread.id, { spread, paper: zine.paper.color, trim, url: canvas.toDataURL("image/png") });
+          cache.current.set(spread.id, { spread, paper: zine.paper.color, trim, folios, url: canvas.toDataURL("image/png") });
         } catch (error) {
           console.error("Thumbnail failed", spread.id, error);
         }

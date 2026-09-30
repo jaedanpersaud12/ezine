@@ -1,14 +1,22 @@
 "use client";
 
+import Link from "next/link";
+import { SignInButton, UserButton } from "@clerk/nextjs";
 import { AnimatePresence, motion } from "motion/react";
-import { BookOpen, Command, Grid2x2, Redo2, Undo2 } from "lucide-react";
+import { BookOpen, Command, Grid2x2, Magnet, Redo2, Undo2 } from "lucide-react";
 import { Tooltip, TooltipGroup } from "@/components/interior/tooltip-group";
 import { Button } from "@/components/ui/button";
 import { pageCount } from "@/lib/zine/schema";
+import { authEnabled } from "@/lib/auth";
 import { useEditorStore } from "@/stores/editor";
 import { cn } from "@/lib/utils";
 
 const SAVE_LABEL = { idle: "", saving: "Saving…", saved: "Saved", error: "Not saved" } as const;
+
+type Props = {
+  // Editing a zine saved to the signed-in account (vs. one kept only in this browser).
+  cloud: boolean;
+};
 
 function BarButton({
   label,
@@ -52,20 +60,33 @@ function BarButton({
   );
 }
 
-export function TopBar() {
+export function TopBar({ cloud }: Props) {
   const zine = useEditorStore((s) => s.zine);
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
   const saveState = useEditorStore((s) => s.saveState);
   const showGuides = useEditorStore((s) => s.showGuides);
-  const { undo, redo, toggleGuides, setCommandOpen, setPreviewOpen, change } = useEditorStore.getState();
+  const snapping = useEditorStore((s) => s.snapping);
+  const { undo, redo, toggleGuides, toggleSnapping, setCommandOpen, setPreviewOpen, change } = useEditorStore.getState();
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3 text-card-foreground">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary font-heading text-[13px] font-bold text-primary-foreground" aria-hidden>
-          z
-        </span>
+        {cloud ? (
+          <Tooltip side="bottom" label="All zines">
+            <Link
+              href="/"
+              aria-label="All zines"
+              className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary font-heading text-[13px] font-bold text-primary-foreground outline-none transition-opacity hover:opacity-85 focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              z
+            </Link>
+          </Tooltip>
+        ) : (
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary font-heading text-[13px] font-bold text-primary-foreground" aria-hidden>
+            z
+          </span>
+        )}
         <input
           aria-label="Zine title"
           value={zine?.title ?? ""}
@@ -110,6 +131,14 @@ export function TopBar() {
         <BarButton label={showGuides ? "Hide guides" : "Show guides"} shortcut="⌘;" onClick={toggleGuides} pressed={showGuides}>
           <Grid2x2 />
         </BarButton>
+        <BarButton
+          label={snapping ? "Snapping on (hold ⌥ to ignore)" : "Snapping off"}
+          shortcut="⇧⌘;"
+          onClick={toggleSnapping}
+          pressed={snapping}
+        >
+          <Magnet />
+        </BarButton>
         <BarButton label="Commands" shortcut="⌘K" onClick={() => setCommandOpen(true)}>
           <Command />
         </BarButton>
@@ -118,6 +147,15 @@ export function TopBar() {
       <Button size="sm" onClick={() => setPreviewOpen(true)} className="gap-1.5">
         <BookOpen /> Preview
       </Button>
+      {cloud ? (
+        <UserButton />
+      ) : authEnabled ? (
+        <SignInButton mode="modal">
+          <Button size="sm" variant="outline">
+            Sign in to save
+          </Button>
+        </SignInButton>
+      ) : null}
     </header>
   );
 }

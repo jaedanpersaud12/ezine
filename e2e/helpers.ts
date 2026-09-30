@@ -150,11 +150,20 @@ export async function handle(page: Page, corner: string): Promise<{ x: number; y
   }, corner);
 }
 
+// Drag like a hand: ~60 fps, quick through the middle, then a slow settle onto the target
+// (which is when snapping is allowed to catch).
 export async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }): Promise<void> {
+  const settleFrom = { x: to.x - Math.sign(to.x - from.x) * 6, y: to.y - Math.sign(to.y - from.y) * 6 };
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
-  await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 6 });
-  await page.mouse.move(to.x, to.y, { steps: 6 });
+  for (let i = 1; i <= 12; i++) {
+    await page.mouse.move(from.x + ((settleFrom.x - from.x) * i) / 12, from.y + ((settleFrom.y - from.y) * i) / 12);
+    await page.waitForTimeout(16);
+  }
+  for (let i = 1; i <= 6; i++) {
+    await page.mouse.move(settleFrom.x + ((to.x - settleFrom.x) * i) / 6, settleFrom.y + ((to.y - settleFrom.y) * i) / 6);
+    await page.waitForTimeout(40);
+  }
   await page.mouse.up();
   await settle(page);
 }

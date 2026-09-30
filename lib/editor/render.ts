@@ -1,5 +1,6 @@
 import { StaticCanvas } from "fabric";
-import { createObject } from "@/lib/editor/fabric/objects";
+import { createFolioObjects, createObject } from "@/lib/editor/fabric/objects";
+import { folioItems } from "@/lib/zine/folios";
 import { spreadGeometry, type Zine } from "@/lib/zine/schema";
 
 // Offscreen rendering of the document: spread thumbnails, 3D page textures and image export all
@@ -21,6 +22,7 @@ export async function renderSpread(zine: Zine, index: number, { pxPerMm, bleed }
 
   const objects = await Promise.all(spread.layers.filter((l) => !l.hidden).map((l) => createObject(l, zine)));
   for (const obj of objects) if (obj) canvas.add(obj);
+  for (const folio of await createFolioObjects(zine, folioItems(zine, index))) canvas.add(folio);
   canvas.renderAll();
 
   // Copy out before disposing, which tears down Fabric's element.

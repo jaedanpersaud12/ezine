@@ -1,20 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowDownToLine,
-  ArrowUpToLine,
-  ChevronDown,
-  ChevronUp,
-  ClipboardPaste,
-  Copy,
-  CopyPlus,
-  EyeOff,
-  Lock,
-  Trash2,
-} from "lucide-react";
-import { ContextMenu, type ContextMenuItem } from "@/components/interior/context-menu";
+import { useEffect, useRef, useState } from "react";
+import { ContextMenu } from "@/components/interior/context-menu";
 import { ZoomControl } from "@/components/editor/ZoomControl";
+import { useLayerMenu } from "@/hooks/useLayerMenu";
 import { STAGE_EVENT, type StageEventDetail } from "@/lib/editor/commands";
 import { StageController } from "@/lib/editor/fabric/StageController";
 import type { SheetSpec } from "@/lib/editor/fabric/ZineCanvas";
@@ -43,7 +32,7 @@ export function Stage() {
   const tool = useEditorStore((s) => s.tool);
   const brush = useEditorStore((s) => s.brush);
   const showGuides = useEditorStore((s) => s.showGuides);
-  const clipboard = useEditorStore((s) => s.clipboard);
+  const snapping = useEditorStore((s) => s.snapping);
 
   const spread = zine?.spreads[spreadIndex] ?? null;
 
@@ -138,6 +127,10 @@ export function Stage() {
     controller?.setTool(tool, brush);
   }, [controller, tool, brush]);
 
+  useEffect(() => {
+    controller?.setSnapping(snapping);
+  }, [controller, snapping]);
+
   // Space bar pans while held, like every design tool.
   useEffect(() => {
     if (!controller) return;
@@ -189,35 +182,7 @@ export function Stage() {
     return () => window.removeEventListener("paste", onPaste);
   }, []);
 
-  const menu = useMemo<ContextMenuItem[]>(() => {
-    const s = useEditorStore.getState;
-    if (!selection.length) {
-      return [
-        {
-          id: "paste",
-          label: "Paste",
-          shortcut: "⌘V",
-          icon: <ClipboardPaste />,
-          disabled: !clipboard.length,
-          onSelect: () => s().paste(),
-        },
-      ];
-    }
-    return [
-      { id: "copy", label: "Copy", shortcut: "⌘C", icon: <Copy />, onSelect: () => s().copySelected() },
-      { id: "duplicate", label: "Duplicate", shortcut: "⌘D", icon: <CopyPlus />, onSelect: () => s().duplicateSelected() },
-      { id: "sep1", type: "separator" },
-      { id: "front", label: "Bring to front", shortcut: "⇧⌘]", icon: <ArrowUpToLine />, onSelect: () => s().arrangeSelected("front") },
-      { id: "forward", label: "Bring forward", shortcut: "⌘]", icon: <ChevronUp />, onSelect: () => s().arrangeSelected("forward") },
-      { id: "backward", label: "Send backward", shortcut: "⌘[", icon: <ChevronDown />, onSelect: () => s().arrangeSelected("backward") },
-      { id: "back", label: "Send to back", shortcut: "⇧⌘[", icon: <ArrowDownToLine />, onSelect: () => s().arrangeSelected("back") },
-      { id: "sep2", type: "separator" },
-      { id: "lock", label: "Lock", shortcut: "⇧⌘L", icon: <Lock />, onSelect: () => s().patchLayers(selection, { locked: true }) },
-      { id: "hide", label: "Hide", shortcut: "⇧⌘H", icon: <EyeOff />, onSelect: () => s().patchLayers(selection, { hidden: true }) },
-      { id: "sep3", type: "separator" },
-      { id: "delete", label: "Delete", shortcut: "⌫", icon: <Trash2 />, onSelect: () => s().removeSelected() },
-    ];
-  }, [selection, clipboard]);
+  const menu = useLayerMenu();
 
   return (
     <div

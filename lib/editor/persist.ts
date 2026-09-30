@@ -1,7 +1,7 @@
 import { zineSchema, type Zine } from "@/lib/zine/schema";
 
-// Local-first storage until Neon and R2 are wired (ZB-4): the document and its asset blobs live in
-// this browser's IndexedDB. One working zine for now.
+// On-device storage. Signed out, this holds the one working zine; signed in, documents live in the
+// account (lib/editor/cloud.ts) and the blob store here doubles as a cache of their assets.
 
 const DB_NAME = "zine-builder";
 const DB_VERSION = 1;
@@ -60,4 +60,9 @@ export async function putBlob(id: string, blob: Blob): Promise<void> {
 export async function getBlob(id: string): Promise<Blob | null> {
   const value: unknown = await run(BLOBS, "readonly", (s) => s.get(id));
   return value instanceof Blob ? value : null;
+}
+
+// After the draft moves to an account. Asset blobs stay as a cache.
+export async function clearZine(): Promise<void> {
+  await run(DOCS, "readwrite", (s) => s.delete(CURRENT));
 }

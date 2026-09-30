@@ -12,7 +12,15 @@ import {
   type Path,
   Textbox,
 } from "fabric";
-import { applyLayer, createObject, layerIdOf, measuredTextHeight, readTransform } from "@/lib/editor/fabric/objects";
+import {
+  applyLayer,
+  createFolioObjects,
+  createObject,
+  layerIdOf,
+  measuredTextHeight,
+  readTransform,
+} from "@/lib/editor/fabric/objects";
+import { folioItems, foliosOf } from "@/lib/zine/folios";
 import { ensureFont } from "@/lib/editor/assets";
 import { NO_LOCK, snapBox, snapTargets, type SnapLock } from "@/lib/editor/fabric/snapping";
 import { ZineCanvas, type SheetSpec } from "@/lib/editor/fabric/ZineCanvas";
@@ -40,9 +48,11 @@ export type StageCallbacks = {
 const SCREEN_DPI_MM = 96 / 25.4; // 100% = true size on a 96 dpi screen
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 60;
-// A guide catches an edge within SNAP_PX and holds it until the pointer pulls RELEASE_PX away.
-const SNAP_PX = 6;
-const RELEASE_PX = 12;
+// Per axis, exactly one thing owns the layer's position each frame: the cursor, or a guide. A guide
+// takes over when an edge comes within SNAP_PX of it and keeps the axis until the cursor pulls
+// RELEASE_PX away. No other heuristics, so the same pointer path always gives the same result.
+const SNAP_PX = 4;
+const RELEASE_PX = 6;
 // Room around a fitted spread; the bottom leaves space for the floating toolbar.
 const FIT_PAD = { x: 48, top: 40, bottom: 96 };
 const SHAPE_TOOLS: Tool[] = ["rect", "ellipse", "triangle", "line"];
@@ -50,6 +60,10 @@ const SHAPE_TOOLS: Tool[] = ["rect", "ellipse", "triangle", "line"];
 type Drag =
   | { kind: "pan"; last: Point }
   | { kind: "shape"; tool: ShapeTool; start: Point; ghost: FabricObject };
+
+function spreadIndexOf(zine: Zine, spreadId: string): number {
+  return Math.max(0, zine.spreads.findIndex((s) => s.id === spreadId));
+}
 
 // Some changes can't be applied in place: the Fabric object is a different class, or a different image.
 function needsRebuild(prev: Layer, next: Layer): boolean {
@@ -79,6 +93,9 @@ export class StageController {
   private readonly measured = new Map<string, number>();
   private measureQueued = false;
   private snapLock: SnapLock = NO_LOCK;
+  private snapping = true;
+  private folios: FabricObject[] = [];
+  private folioKey = "";
 
   constructor(el: HTMLCanvasElement, callbacks: StageCallbacks) {
     this.callbacks = callbacks;
@@ -152,14 +169,37 @@ export class StageController {
     this.zine = zine;
     if (spreadId !== this.spreadId) {
       this.spreadId = spreadId;
+      // Clearing the old spread isn't the user deselecting: don't report it (the selection may
+      // have come along, e.g. layers moved to this spread).
+      this.syncingSelection = true;
       this.canvas.discardActiveObject();
+      this.syncingSelection = false;
       this.canvas.remove(...this.canvas.getObjects());
+      this.folios = [];
+      this.folioKey = "";
       this.objects.clear();
       this.applied.clear();
       this.building.clear();
     }
     this.layers = layers;
     this.reconcile();
+    this.syncFolios(zine, spreadIndexOf(zine, spreadId));
+  }
+
+  // Page numbers are rebuilt only when what they show changes.
+  private syncFolios(zine: Zine, spreadIndex: number): void {
+    const items = folioItems(zine, spreadIndex);
+    const f = foliosOf(zine);
+    const key = JSON.stringify([items, f, zine.trim]);
+    if (key === this.folioKey) return;
+    this.folioKey = key;
+    void createFolioObjects(zine, items).then((objs) => {
+      if (key !== this.folioKey) return;
+      this.canvas.remove(...this.folios);
+      this.folios = objs;
+      if (objs.length) this.canvas.add(...objs);
+      this.canvas.requestRenderAll();
+    });
   }
 
   setSelection(ids: string[]): void {
@@ -196,6 +236,15 @@ export class StageController {
     c.hoverCursor = selecting ? "move" : c.defaultCursor;
     if (!selecting) c.discardActiveObject();
     c.requestRenderAll();
+  }
+
+  setSnapping(on: boolean): void {
+    this.snapping = on;
+    if (!on) {
+      this.snapLock = NO_LOCK;
+      this.canvas.snapLines = [];
+      this.canvas.requestRenderAll();
+    }
   }
 
   setSpaceHeld(held: boolean): void {
@@ -403,7 +452,7 @@ export class StageController {
 
     c.on("object:moving", ({ target, e }) => {
       const sheet = c.sheet;
-      if (!sheet || ("altKey" in e && e.altKey)) {
+      if (!sheet || !this.snapping || ("altKey" in e && e.altKey)) {
         c.snapLines = [];
         this.snapLock = NO_LOCK;
         return;
@@ -411,7 +460,7 @@ export class StageController {
       const moving = new Set(target instanceof ActiveSelection ? target.getObjects() : [target]);
       const others = c
         .getObjects()
-        .filter((o) => !moving.has(o) && o.visible)
+        .filter((o) => !moving.has(o) && o.visible && !this.folios.includes(o))
         .map((o) => o.getBoundingRect());
       // Fabric only refreshes coords at the end of a drag; without this the box is a frame stale.
       target.setCoords();

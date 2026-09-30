@@ -127,6 +127,17 @@ export const assetSchema = z.object({
   family: z.string().optional(),
 });
 
+// Automatic page numbers (folios) on the inside pages. Covers are never numbered.
+export const foliosSchema = z.object({
+  enabled: z.boolean(),
+  position: z.enum(["outer", "centre"]),
+  fontFamily: z.string(),
+  sizePt: z.number().min(4).max(72),
+  color: hex,
+  // Distance from the bottom trim to the baseline area, in mm.
+  marginMm: z.number().min(0).max(40),
+});
+
 export const zineSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   id: z.string(),
@@ -136,10 +147,13 @@ export const zineSchema = z.object({
     widthMm: z.number().min(40).max(420),
     heightMm: z.number().min(40).max(420),
   }),
-  binding: z.literal("saddle"),
+  // Saddle stitch folds sheets into 4-page signatures; "none" is loose leaves or digital (2 pages a leaf).
+  binding: z.enum(["saddle", "none"]),
   bleedMm: z.number().min(0).max(10),
   safeMm: z.number().min(0).max(30),
   paper: z.object({ color: hex }),
+  // Optional so zines saved before folios existed still load.
+  folios: foliosSchema.optional(),
   spreads: z.array(spreadSchema).min(3),
   assets: z.record(z.string(), assetSchema),
   updatedAt: z.string(),
@@ -155,6 +169,7 @@ export type Layer = z.infer<typeof layerSchema>;
 export type LayerKind = Layer["kind"];
 export type Spread = z.infer<typeof spreadSchema>;
 export type Asset = z.infer<typeof assetSchema>;
+export type Folios = z.infer<typeof foliosSchema>;
 export type Zine = z.infer<typeof zineSchema>;
 
 // ── Geometry ────────────────────────────────────────────────────────────────
@@ -172,6 +187,13 @@ export type SpreadGeometry = {
 
 export function leafCount(zine: Zine): number {
   return zine.spreads.length - 1;
+}
+
+export type Binding = Zine["binding"];
+
+// Pages have to be added and removed in these steps: a folded sheet (4) or a single leaf (2).
+export function pageStep(zine: Pick<Zine, "binding">): 2 | 4 {
+  return zine.binding === "saddle" ? 4 : 2;
 }
 
 export function pageCount(zine: Zine): number {

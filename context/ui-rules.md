@@ -116,3 +116,11 @@ define a color in a config file.
 - Never commit a component from outside the `@ja3dan` registry with its source's original
   hardcoded colors still in place — retheme to contract tokens first, same as any other raw
   color
+
+---
+
+## Departures
+
+- **Library (`/` signed in) skips the `app-ui` sidebar shell.** It's a single screen, and the
+  editor it leads to is full-bleed, so it reuses the editor's 48px top bar instead of a
+  sidebar.

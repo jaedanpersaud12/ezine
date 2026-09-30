@@ -20,7 +20,7 @@ export function newSpread(): Spread {
   return { id: newId(), background: null, layers: [] };
 }
 
-// Saddle stitch: 2 leaves = 4 pages per folded sheet, so the leaf count stays even.
+// New zines start saddle stitched: 2 leaves = 4 pages per folded sheet, so the leaf count stays even.
 export function newZine(leaves = 8): Zine {
   const a5 = TRIMS.a5;
   return {

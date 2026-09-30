@@ -26,7 +26,7 @@ export function ShapeSection({ layer }: { layer: ShapeLayer }) {
   const isLine = layer.shape === "line";
 
   return (
-    <Section title="Shape">
+    <Section id="shape" title="Shape">
       <SegmentedControl
         label="Shape"
         options={SHAPES}
