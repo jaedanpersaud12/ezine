@@ -20,6 +20,13 @@
   running (now 45 tests, 4 workers) the dev server took longer than 5 s to serve `/`; it passed
   alone and failed twice in full runs before the change.
 
+- Found by the round-trip test: a session ending mid-edit (sign-out in another tab, expiry) makes
+  Clerk refresh the page, `auth.protect()` redirects to `/sign-in`, and the edit still waiting on
+  the autosave was lost (its exit save got a 401). Fix: account saves write a copy to IndexedDB
+  (`pending:<id>`) first and clear it once the server has that version; opening a zine prefers a
+  newer pending copy and saves it. Also covers closing the tab while offline. Pending copies of
+  zines deleted elsewhere aren't cleaned up; that belongs with 04's cache eviction.
+
 ## Evidence
 - 404 page: e2e `failures.spec.ts` "an unknown URL shows the app's own 404" (status 404, heading,
   Go home → `/`). Also seen in the browser.
@@ -33,9 +40,11 @@
   identical before and after).
 - Storage full (signed out): e2e "a browser that refuses the write says it's out of space" (Retry
   saves; reload keeps the title). Popover also checked in the browser.
-- Offline / 401 / 500 / R2 refused: e2e in `saving.spec.ts`, written and skipping. Not verified
-  yet, because there's no Clerk test user on the development instance (needs
-  `E2E_CLERK_USER_EMAIL`).
-- 401 sign-in round trip: not verified yet, because it needs the test user too; by hand.
+- Offline / 401 / 500 / R2 refused: e2e in `saving.spec.ts`, all passing as the Clerk test user
+  `e2e+clerk_test@example.com` (created by the developer on the development instance). Each
+  also checks the title reached the local database, which proves the dev server is on it.
+- Session ending mid-edit: e2e "session ends mid-edit: back from sign-in, the unsaved edit is
+  restored and saved". Fails with the restore disabled (title comes back "Untitled zine"),
+  passes with it.
 - Signed-in tests hit only the local database: enforced by `e2e/db.ts` and `requireAccount()`.
-- Full suite: 41 passed, 4 skipped (the signed-in ones). `bun run check` clean; `next build` passes.
+- Full suite: 46 passed, none skipped. `bun run check` clean; `next build` passes.

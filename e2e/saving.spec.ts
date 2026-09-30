@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { clerk } from "@clerk/testing/playwright";
 import { openAccountZine, requireAccount } from "./account";
 import { deleteZine, savedTitle } from "./db";
 import { addImage } from "./images";
@@ -100,4 +101,19 @@ test("storage refuses an image: marked on its layer, and Retry uploads and saves
   await marker.click();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(marker).toBeHidden();
+});
+
+test("session ends mid-edit: back from sign-in, the unsaved edit is restored and saved", async ({ page }) => {
+  // The edit is still waiting on the autosave delay when the session ends (signed out in another
+  // tab, or expired). Clerk refreshes the page, which sends a signed-out visitor to sign in.
+  await rename(page, "Kept through sign-in");
+  await page.evaluate(() => window.Clerk.signOut(() => undefined));
+  await expect(page).toHaveURL(/\/sign-in/, { timeout: 15_000 });
+  expect(await savedTitle(zineId)).not.toBe("Kept through sign-in");
+
+  await clerk.signIn({ page, emailAddress: process.env.E2E_CLERK_USER_EMAIL ?? "" });
+  await page.goto(`/zines/${zineId}`);
+  await expect(page.getByRole("textbox", { name: "Zine title" })).toHaveValue("Kept through sign-in");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => savedTitle(zineId)).toBe("Kept through sign-in");
 });

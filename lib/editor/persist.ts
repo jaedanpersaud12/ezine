@@ -67,6 +67,35 @@ export async function getBlob(id: string): Promise<Blob | null> {
   return value instanceof Blob ? value : null;
 }
 
+// Account zines keep a copy here until the server has it, so edits survive a failed save followed
+// by leaving the page: a session ending mid-edit redirects to sign-in, a tab closed offline.
+function pendingKey(id: string): string {
+  return `pending:${id}`;
+}
+
+export async function savePending(zine: Zine): Promise<void> {
+  await run(DOCS, "readwrite", (s) => s.put(zine, pendingKey(zine.id)));
+}
+
+// The unsaved copy of this zine, if one is newer than what the server sent.
+export async function loadPending(id: string, serverUpdatedAt: string): Promise<Zine | null> {
+  try {
+    const parsed = zineSchema.safeParse(await run(DOCS, "readonly", (s) => s.get(pendingKey(id))));
+    return parsed.success && parsed.data.updatedAt > serverUpdatedAt ? parsed.data : null;
+  } catch (error) {
+    console.error("Could not read the unsaved copy", id, error);
+    return null;
+  }
+}
+
+// Once the server has this version. A newer copy (edits made while the save was in flight) stays.
+export async function clearPending(zine: Zine): Promise<void> {
+  const stored: unknown = await run(DOCS, "readonly", (s) => s.get(pendingKey(zine.id)));
+  const parsed = zineSchema.safeParse(stored);
+  if (parsed.success && parsed.data.updatedAt > zine.updatedAt) return;
+  await run(DOCS, "readwrite", (s) => s.delete(pendingKey(zine.id)));
+}
+
 // After the draft moves to an account. Asset blobs stay as a cache.
 export async function clearZine(): Promise<void> {
   await run(DOCS, "readwrite", (s) => s.delete(CURRENT));

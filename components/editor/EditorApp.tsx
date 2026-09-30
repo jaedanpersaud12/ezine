@@ -11,7 +11,7 @@ import { Toolbar } from "@/components/editor/Toolbar";
 import { TopBar } from "@/components/editor/TopBar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { markUploaded, saveCloudZine } from "@/lib/editor/cloud";
-import { loadZine, saveZine } from "@/lib/editor/persist";
+import { clearPending, loadPending, loadZine, savePending, saveZine } from "@/lib/editor/persist";
 import { toSaveFailure } from "@/lib/editor/saveError";
 import { newZine } from "@/lib/zine/create";
 import type { Zine } from "@/lib/zine/schema";
@@ -28,20 +28,19 @@ const AUTOSAVE_MS = 800;
 // After a failed save (offline, a dropped upload), try again on this delay without waiting for an edit.
 const RETRY_MS = 5000;
 
+// An account save: a local copy first, so nothing is lost if the server doesn't take it.
+async function saveCloud(zine: Zine): Promise<void> {
+  await savePending(zine).catch((error: unknown) => console.error("Could not keep an unsaved copy", error));
+  await saveCloudZine(zine);
+  await clearPending(zine).catch((error: unknown) => console.error("Could not clear the unsaved copy", error));
+}
+
 // Load the zine, then save it shortly after every change. Saves run one at a time so a slow
 // request can't land after (and overwrite) a newer one.
 function usePersistence(source: EditorSource): void {
   useEffect(() => {
     let cancelled = false;
-    if (source.kind === "cloud") {
-      markUploaded(source.zine);
-      useEditorStore.getState().load(source.zine);
-    } else {
-      void loadZine().then((saved) => {
-        if (!cancelled) useEditorStore.getState().load(saved ?? newZine());
-      });
-    }
-    const save = source.kind === "cloud" ? saveCloudZine : saveZine;
+    const save = source.kind === "cloud" ? saveCloud : saveZine;
 
     let timer: number | undefined;
     let queue = Promise.resolve();
@@ -62,6 +61,23 @@ function usePersistence(source: EditorSource): void {
         }
       });
     };
+    if (source.kind === "cloud") {
+      markUploaded(source.zine);
+      // Edits this browser couldn't get to the server last time win over the server's copy.
+      void loadPending(source.zine.id, source.zine.updatedAt).then((pending) => {
+        if (cancelled) return;
+        useEditorStore.getState().load(pending ?? source.zine);
+        if (pending) {
+          useEditorStore.getState().setSaveState("saving");
+          flush();
+        }
+      });
+    } else {
+      void loadZine().then((saved) => {
+        if (!cancelled) useEditorStore.getState().load(saved ?? newZine());
+      });
+    }
+
     // The save status's Retry (and signing back in) saves straight away.
     useEditorStore.setState({
       retrySave: () => {

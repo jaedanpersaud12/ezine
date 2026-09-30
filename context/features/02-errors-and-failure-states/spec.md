@@ -24,8 +24,10 @@ thing it can do is lose that work silently or leave them staring at a white scre
 - [ ] Signed in and offline, the save status reads "Not saved"; clicking it says you're offline
       and saves resume on reconnect (e2e).
 - [ ] Signed in, a 401 from the save endpoint shows "You've been signed out" with a sign-in
-      action that opens Clerk in place; after signing in the save goes through (e2e for the
-      message, by hand for the round trip).
+      action that opens Clerk in place (e2e).
+- [ ] A session that really ends mid-edit (Clerk redirects to sign-in) loses nothing: after
+      signing back in, the unsaved edit is restored and saved (e2e). *Amended during the build:
+      the original criterion assumed the page stays put, but Clerk redirects.*
 - [ ] Signed in, a 500 shows "Couldn't reach the server" with Retry, and Retry saves once the
       server recovers (e2e).
 - [ ] Signed in, R2 refusing an image PUT shows "An image didn't upload" in the popover and a
