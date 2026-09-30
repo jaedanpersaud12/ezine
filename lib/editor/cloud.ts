@@ -6,8 +6,10 @@ import { networkError, SaveError } from "@/lib/editor/saveError";
 // Account storage: documents go to Neon via /api/zines, asset bytes go straight to R2 through
 // presigned URLs. IndexedDB stays in front as a cache so images don't re-download every load.
 //
-// Invariant: a document is only saved after every asset it references has finished uploading,
-// so anything in a saved doc's `assets` is safe to fetch.
+// Invariant: a document is only saved after every font in `assets` and every image a layer shows
+// has finished uploading, so anything the document displays is safe to fetch. (An image whose
+// layer was deleted may never have uploaded; nothing reads it. Undo brings the layer back, and
+// with it the upload.)
 
 type ApiResult<T> = { success: boolean; data?: T; error?: string };
 
@@ -35,7 +37,7 @@ export function markUploaded(zine: Zine): void {
 
 async function sendAsset(asset: Asset): Promise<void> {
   const blob = await getBlob(asset.id);
-  if (!blob) throw new SaveError("upload", `Asset ${asset.name} is missing from this device`, [asset.id]);
+  if (!blob) throw new SaveError("missing", `Asset ${asset.name} is missing from this device`, [asset.id]);
   const data = await api<{ url: string }>("/api/assets", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -56,7 +58,7 @@ function uploadAsset(asset: Asset): Promise<void> {
   let pending = uploads.get(asset.id);
   if (!pending) {
     pending = sendAsset(asset).catch((error: unknown) => {
-      // Offline and signed out are about the session, not this file; anything else is the file's.
+      // Offline, signed out and missing already say what's wrong; anything else is an upload failure.
       if (error instanceof SaveError && error.failure.reason !== "server") throw error;
       throw new SaveError("upload", error instanceof Error ? error.message : String(error), [asset.id]);
     });
@@ -67,15 +69,30 @@ function uploadAsset(asset: Asset): Promise<void> {
   return pending;
 }
 
+// What has to be in storage before the document can be saved: every uploaded font (they stay in
+// the font list whether or not text uses them) and the images a layer still shows. An image whose
+// layer was deleted doesn't hold up the save.
+function neededAssets(zine: Zine): Asset[] {
+  const shown = new Set(zine.spreads.flatMap((s) => s.layers.flatMap((l) => (l.kind === "image" ? [l.assetId] : []))));
+  return Object.values(zine.assets).filter((a) => a.kind === "font" || shown.has(a.id));
+}
+
 // Every asset is attempted, so a failure can name all the files that didn't make it.
 async function uploadAll(zine: Zine): Promise<void> {
-  const results = await Promise.allSettled(Object.values(zine.assets).map(uploadAsset));
+  const results = await Promise.allSettled(neededAssets(zine).map(uploadAsset));
   const errors: unknown[] = results.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
   if (!errors.length) return;
-  const session = errors.find((e) => e instanceof SaveError && e.failure.reason !== "upload");
+  const reasonOf = (e: unknown): string => (e instanceof SaveError ? e.failure.reason : "upload");
+  // The session problems first: fixing those is what unblocks everything else.
+  const session = errors.find((e) => reasonOf(e) === "offline" || reasonOf(e) === "signed-out");
   if (session) throw session;
-  const assetIds = errors.flatMap((e) => (e instanceof SaveError ? e.failure.assetIds : []));
-  throw new SaveError("upload", `${assetIds.length} upload(s) failed`, assetIds);
+  const idsFor = (reason: string): string[] =>
+    errors.flatMap((e) => (e instanceof SaveError && e.failure.reason === reason ? e.failure.assetIds : []));
+  // Missing files can't be fixed by retrying, so they're what to tell people about.
+  const missing = idsFor("missing");
+  if (missing.length) throw new SaveError("missing", `${missing.length} file(s) missing`, missing);
+  const failed = idsFor("upload");
+  throw new SaveError("upload", `${failed.length} upload(s) failed`, failed);
 }
 
 export async function saveCloudZine(zine: Zine): Promise<void> {

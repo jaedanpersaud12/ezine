@@ -104,7 +104,8 @@ const NO_FAILED_UPLOADS: string[] = [];
 
 // Asset ids whose upload failed on the last save attempt (stable when there are none).
 export function selectFailedUploads(state: EditorState): string[] {
-  return state.saveError?.reason === "upload" ? state.saveError.assetIds : NO_FAILED_UPLOADS;
+  const reason = state.saveError?.reason;
+  return reason === "upload" || reason === "missing" ? (state.saveError?.assetIds ?? NO_FAILED_UPLOADS) : NO_FAILED_UPLOADS;
 }
 
 export const useEditorStore = create<EditorState>()((set, get) => ({
@@ -155,7 +156,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const previous = past.at(-1);
     if (!zine || !previous) return;
     set({
-      zine: previous,
+      // An undo is an edit too: stamping it keeps "newer" meaning newer for the unsaved copy.
+      zine: { ...previous, updatedAt: new Date().toISOString() },
       past: past.slice(0, -1),
       future: [zine, ...future],
       lastChange: { key: null, at: 0 },
@@ -168,7 +170,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const next = future[0];
     if (!zine || !next) return;
     set({
-      zine: next,
+      zine: { ...next, updatedAt: new Date().toISOString() },
       past: [...past, zine],
       future: future.slice(1),
       lastChange: { key: null, at: 0 },

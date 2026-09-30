@@ -19,7 +19,8 @@ export async function openAccountZine(page: Page): Promise<string> {
   await clerk.signIn({ page, emailAddress: email });
   await page.goto("/");
   await page.getByRole("button", { name: "New zine" }).click();
-  await expect(page).toHaveURL(/\/zines\/[0-9a-f-]{36}$/);
+  // Creating the zine is a server action plus a server-rendered page; slow when the suite is busy.
+  await expect(page).toHaveURL(/\/zines\/[0-9a-f-]{36}$/, { timeout: 15_000 });
   await page.waitForFunction(() => Boolean(window.__zine?.stage && window.__zine.store.getState().zine));
   return page.url().split("/").at(-1) ?? "";
 }

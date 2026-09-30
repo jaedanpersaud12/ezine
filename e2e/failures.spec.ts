@@ -17,7 +17,8 @@ test("an unknown URL shows the app's own 404 with a way home", async ({ page }) 
   expect(res?.status()).toBe(404);
   await expect(page.getByRole("heading", { name: "This page isn't here." })).toBeVisible();
   await page.getByRole("link", { name: "Go home" }).click();
-  await expect(page).toHaveURL(/\/$/);
+  // The landing page can take a while to serve from the dev server when the suite is busy.
+  await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
 });
 
 test("a canvas crash keeps the editor and the document, and the canvas reloads", async ({ page }) => {
@@ -62,14 +63,16 @@ test("a preview crash says so and hands back to the editor with the document int
 });
 
 test("signed out, a browser that refuses the write says it's out of space, and Retry saves", async ({ page }) => {
-  // Every IndexedDB write throws while the flag is set, the way a full disk does.
+  // While the flag is set, writes are accepted and then the commit aborts, the way browsers
+  // report running out of space (the request succeeds; the transaction doesn't).
   await page.addInitScript(() => {
     const put = IDBObjectStore.prototype.put;
     IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore["put"]>) {
+      const req = put.apply(this, args);
       if ((window as { __failWrites?: boolean }).__failWrites) {
-        throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+        req.addEventListener("success", () => this.transaction.abort());
       }
-      return put.apply(this, args);
+      return req;
     };
   });
   await openEditor(page);

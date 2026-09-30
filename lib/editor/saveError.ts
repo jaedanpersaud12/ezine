@@ -2,9 +2,11 @@
 //   offline     the network is down; saves resume when it's back
 //   signed-out  the session ended (401); signing in again lets the save through
 //   upload      an image or font didn't reach storage; `assetIds` says which
+//   missing     an image or font isn't on this device and never reached storage, so retrying
+//               can't help; removing or replacing it can
 //   server      the API failed or answered with something unexpected
 //   storage     this browser refused the write (usually out of space)
-export type SaveFailureReason = "offline" | "signed-out" | "upload" | "server" | "storage";
+export type SaveFailureReason = "offline" | "signed-out" | "upload" | "missing" | "server" | "storage";
 
 export type SaveFailure = { reason: SaveFailureReason; assetIds: string[] };
 

@@ -48,3 +48,40 @@
   passes with it.
 - Signed-in tests hit only the local database: enforced by `e2e/db.ts` and `requireAccount()`.
 - Full suite: 46 passed, none skipped. `bun run check` clean; `next build` passes.
+
+## 2026-09-30 — review fixes
+The developer picked both Important findings and Minors 1, 3 and 4 from review.md. I added
+Minor 2 as well, because it sits in the same code.
+
+- Important 1 (Sign in did nothing): Clerk's single-session guard hides `openSignIn` while signed
+  in, and the popover unmounted the retry effect. "Sign in" now ends the session and goes to
+  `/sign-in?redirect_url=<zine>`. The unsaved copy is restored on return. Evidence: e2e "signed
+  out mid-edit: Sign in goes through sign-in and back, and the edit is saved". The test signs in
+  with a Clerk ticket, so it follows `redirect_url` itself; Clerk's form does that redirect for a
+  real user.
+- Important 2 (quota reads as saved): `persist.ts` `run()` settles on the transaction's
+  `complete`/`abort`, not the request's success. `savePending` failures are typed as storage. The
+  storage test now models a real quota error (the request succeeds, then the commit aborts). It
+  fails with the old `run()` and passes with the new one.
+- Minor 1 (undo lost): undo and redo stamp `updatedAt`. Evidence: e2e "session ends right after
+  an undo". It fails without the stamp (the reopened zine shows "Second") and passes with it.
+- Minor 2 (clearPending race): the check and the delete now run in one readwrite transaction.
+  No dedicated test; the window is too narrow to hit deterministically.
+- Minor 3 (no timeout): `loadPending` gives up after 2 s and falls back to the server copy. Not
+  verified by a test, because a hung IndexedDB can't be produced reliably in Chromium.
+- Minor 4 (upload marker / blocked saves):
+  - Only fonts, and images a layer still shows, must upload before a save, so deleting a stuck
+    image unblocks saving. The invariant comment in `cloud.ts` is updated; nothing reads unused
+    images.
+  - A new `missing` reason covers a file that's neither on the device nor uploaded. The popover
+    says so without Retry, and the layer marker is informational.
+  - Upload text only mentions the layers panel when an image is involved.
+  - Evidence: e2e "deleting an image that won't upload lets the rest save" and "an image missing
+    from this browser says so, offers no Retry, and deleting it unblocks saving".
+- Test robustness, found while the machine was heavily loaded (load average 35–60):
+  - The two session-end tests hold account saves (routed as dropped connections) until the zine
+    reopens, so a save can't win the race against sign-out. Before this, one of them could pass
+    without the fix.
+  - Signed-in tests get 120 s each.
+  - The 404 "Go home" and "New zine" navigations get 15 s, like the journey test.
+- Full suite: 49 passed. `bun run check` clean; `next build` passes.

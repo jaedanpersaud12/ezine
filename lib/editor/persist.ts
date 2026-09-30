@@ -25,12 +25,16 @@ function openDb(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
+// Settles when the transaction does, not when its request does: a write only counts once it's
+// committed, and running out of space shows up as the commit aborting after the request succeeded.
 async function run<T>(store: string, mode: IDBTransactionMode, op: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const req = op(db.transaction(store, mode).objectStore(store));
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error ?? new Error("IndexedDB request failed"));
+    const tx = db.transaction(store, mode);
+    const req = op(tx.objectStore(store));
+    tx.oncomplete = () => resolve(req.result);
+    tx.onabort = () => reject(tx.error ?? req.error ?? new Error("IndexedDB transaction aborted"));
+    tx.onerror = () => reject(tx.error ?? req.error ?? new Error("IndexedDB request failed"));
   });
 }
 
@@ -74,26 +78,55 @@ function pendingKey(id: string): string {
 }
 
 export async function savePending(zine: Zine): Promise<void> {
-  await run(DOCS, "readwrite", (s) => s.put(zine, pendingKey(zine.id)));
+  try {
+    await run(DOCS, "readwrite", (s) => s.put(zine, pendingKey(zine.id)));
+  } catch (error) {
+    throw new SaveError("storage", error instanceof Error ? error.message : String(error));
+  }
 }
+
+// Opening a zine waits on this, so a stuck IndexedDB (it happens) can't hold the editor up.
+const PENDING_READ_MS = 2000;
 
 // The unsaved copy of this zine, if one is newer than what the server sent.
 export async function loadPending(id: string, serverUpdatedAt: string): Promise<Zine | null> {
-  try {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      console.error("Reading the unsaved copy timed out", id);
+      resolve(null);
+    }, PENDING_READ_MS);
+  });
+  const read = (async (): Promise<Zine | null> => {
     const parsed = zineSchema.safeParse(await run(DOCS, "readonly", (s) => s.get(pendingKey(id))));
     return parsed.success && parsed.data.updatedAt > serverUpdatedAt ? parsed.data : null;
-  } catch (error) {
+  })().catch((error: unknown) => {
     console.error("Could not read the unsaved copy", id, error);
     return null;
+  });
+  try {
+    return await Promise.race([read, timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 // Once the server has this version. A newer copy (edits made while the save was in flight) stays.
+// One transaction for the check and the delete, so a newer copy written in between can't be lost.
 export async function clearPending(zine: Zine): Promise<void> {
-  const stored: unknown = await run(DOCS, "readonly", (s) => s.get(pendingKey(zine.id)));
-  const parsed = zineSchema.safeParse(stored);
-  if (parsed.success && parsed.data.updatedAt > zine.updatedAt) return;
-  await run(DOCS, "readwrite", (s) => s.delete(pendingKey(zine.id)));
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(DOCS, "readwrite");
+    const store = tx.objectStore(DOCS);
+    const key = pendingKey(zine.id);
+    const req = store.get(key);
+    req.onsuccess = () => {
+      const stored = zineSchema.safeParse(req.result);
+      if (!(stored.success && stored.data.updatedAt > zine.updatedAt)) store.delete(key);
+    };
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+  });
 }
 
 // After the draft moves to an account. Asset blobs stay as a cache.

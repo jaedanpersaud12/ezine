@@ -23,8 +23,10 @@ thing it can do is lose that work silently or leave them staring at a white scre
       editor, and the document is unchanged (e2e).
 - [ ] Signed in and offline, the save status reads "Not saved"; clicking it says you're offline
       and saves resume on reconnect (e2e).
-- [ ] Signed in, a 401 from the save endpoint shows "You've been signed out" with a sign-in
-      action that opens Clerk in place (e2e).
+- [ ] Signed in, a 401 from the save endpoint shows "You've been signed out" with a Sign in
+      action that goes through sign-in and back to the zine, where the edit is restored and
+      saved (e2e). *Amended after review: Clerk won't open sign-in over a session it still
+      thinks is live, so "in place" wasn't possible.*
 - [ ] A session that really ends mid-edit (Clerk redirects to sign-in) loses nothing: after
       signing back in, the unsaved edit is restored and saved (e2e). *Amended during the build:
       the original criterion assumed the page stays put, but Clerk redirects.*

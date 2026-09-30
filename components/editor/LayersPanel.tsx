@@ -27,6 +27,8 @@ export function LayersPanel() {
   const patchLayers = useEditorStore((s) => s.patchLayers);
   const reorderLayers = useEditorStore((s) => s.reorderLayers);
   const failedUploads = useEditorStore(selectFailedUploads);
+  // Missing files can't be retried; the marker only says so.
+  const missing = useEditorStore((s) => s.saveError?.reason === "missing");
   const [dragOrder, setDragOrder] = useState<Layer[] | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const menu = useLayerMenu();
@@ -119,7 +121,16 @@ export function LayersPanel() {
                     {layer.name}
                   </span>
                 )}
-                {uploadFailed ? (
+                {uploadFailed && missing ? (
+                  <span
+                    role="img"
+                    aria-label="This image is missing. Delete or replace it to keep saving"
+                    title="This image is missing. Delete or replace it to keep saving"
+                    className="flex size-6 items-center justify-center text-destructive [&_svg]:size-3.5"
+                  >
+                    <CloudAlert />
+                  </span>
+                ) : uploadFailed ? (
                   <button
                     type="button"
                     aria-label="This image didn't upload. Retry"
