@@ -2,19 +2,15 @@
 
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
-import { AnimatePresence, motion } from "motion/react";
 import { BookOpen, Command, Grid2x2, Magnet, Redo2, Undo2 } from "lucide-react";
 import { Tooltip, TooltipGroup } from "@/components/interior/tooltip-group";
+import { SaveStatus } from "@/components/editor/SaveStatus";
 import { SaveToAccountButton } from "@/components/editor/SaveToAccountButton";
 import { Button } from "@/components/ui/button";
 import { pageCount } from "@/lib/zine/schema";
 import { authEnabled } from "@/lib/auth";
 import { useEditorStore } from "@/stores/editor";
 import { cn } from "@/lib/utils";
-
-const SAVE_LABEL = { idle: "", saving: "Saving…", saved: "Saved", error: "Not saved" } as const;
-// Signed out, "Saved" would oversell it: the work only lives in this browser.
-const LOCAL_SAVE_LABEL = { ...SAVE_LABEL, saved: "Saved in this browser" } as const;
 
 type Props = {
   // Editing a zine saved to the signed-in account (vs. one kept only in this browser).
@@ -67,10 +63,8 @@ export function TopBar({ cloud }: Props) {
   const zine = useEditorStore((s) => s.zine);
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
-  const saveState = useEditorStore((s) => s.saveState);
   const showGuides = useEditorStore((s) => s.showGuides);
   const snapping = useEditorStore((s) => s.snapping);
-  const saveLabel = (cloud ? SAVE_LABEL : LOCAL_SAVE_LABEL)[saveState];
   const { undo, redo, toggleGuides, toggleSnapping, setCommandOpen, setPreviewOpen, change } = useEditorStore.getState();
 
   return (
@@ -103,19 +97,7 @@ export function TopBar({ cloud }: Props) {
             {pageCount(zine)} pages · {zine.trim.widthMm} × {zine.trim.heightMm} mm
           </span>
         ) : null}
-        <AnimatePresence mode="wait">
-          {saveLabel ? (
-            <motion.span
-              key={saveState}
-              initial={{ opacity: 0, y: 2 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, transition: { duration: 0.1 } }}
-              className={cn("text-xs", saveState === "error" ? "text-destructive" : "text-subtle-foreground")}
-            >
-              {saveLabel}
-            </motion.span>
-          ) : null}
-        </AnimatePresence>
+        <SaveStatus cloud={cloud} />
       </div>
 
       <TooltipGroup className="flex items-center gap-0.5">

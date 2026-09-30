@@ -1,6 +1,7 @@
 import { authEnabled } from "@/lib/auth";
 import type { Asset, Zine } from "@/lib/zine/schema";
 import { getBlob, putBlob } from "@/lib/editor/persist";
+import { networkError, SaveError } from "@/lib/editor/saveError";
 
 // Account storage: documents go to Neon via /api/zines, asset bytes go straight to R2 through
 // presigned URLs. IndexedDB stays in front as a cache so images don't re-download every load.
@@ -12,10 +13,18 @@ type ApiResult<T> = { success: boolean; data?: T; error?: string };
 
 const uploads = new Map<string, Promise<void>>();
 
+// Failures come out as SaveErrors, so the save status can say what went wrong.
 async function api<T>(input: string, init?: RequestInit): Promise<T | undefined> {
-  const res = await fetch(input, init);
-  const body = (await res.json()) as ApiResult<T>;
-  if (!res.ok || !body.success) throw new Error(body.error ?? `Request failed (${res.status})`);
+  let res: Response;
+  try {
+    res = await fetch(input, init);
+  } catch (error) {
+    throw networkError(error);
+  }
+  if (res.status === 401) throw new SaveError("signed-out", "Signed out");
+  // A proxy or crash page can answer with HTML, so the body may not parse.
+  const body = (await res.json().catch(() => null)) as ApiResult<T> | null;
+  if (!res.ok || !body?.success) throw new SaveError("server", body?.error ?? `Request failed (${res.status})`);
   return body.data;
 }
 
@@ -24,21 +33,33 @@ export function markUploaded(zine: Zine): void {
   for (const id of Object.keys(zine.assets)) uploads.set(id, Promise.resolve());
 }
 
+async function sendAsset(asset: Asset): Promise<void> {
+  const blob = await getBlob(asset.id);
+  if (!blob) throw new SaveError("upload", `Asset ${asset.name} is missing from this device`, [asset.id]);
+  const data = await api<{ url: string }>("/api/assets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: asset.id, kind: asset.kind, mime: asset.mime, size: blob.size }),
+  });
+  if (!data) throw new SaveError("upload", "No upload URL", [asset.id]);
+  let put: Response;
+  try {
+    put = await fetch(data.url, { method: "PUT", body: blob, headers: { "Content-Type": asset.mime } });
+  } catch (error) {
+    const failure = networkError(error);
+    throw failure.failure.reason === "offline" ? failure : new SaveError("upload", failure.message, [asset.id]);
+  }
+  if (!put.ok) throw new SaveError("upload", `Upload failed (${put.status})`, [asset.id]);
+}
+
 function uploadAsset(asset: Asset): Promise<void> {
   let pending = uploads.get(asset.id);
   if (!pending) {
-    pending = (async () => {
-      const blob = await getBlob(asset.id);
-      if (!blob) throw new Error(`Asset ${asset.name} is missing from this device`);
-      const data = await api<{ url: string }>("/api/assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: asset.id, kind: asset.kind, mime: asset.mime, size: blob.size }),
-      });
-      if (!data) throw new Error("No upload URL");
-      const put = await fetch(data.url, { method: "PUT", body: blob, headers: { "Content-Type": asset.mime } });
-      if (!put.ok) throw new Error(`Upload failed (${put.status})`);
-    })();
+    pending = sendAsset(asset).catch((error: unknown) => {
+      // Offline and signed out are about the session, not this file; anything else is the file's.
+      if (error instanceof SaveError && error.failure.reason !== "server") throw error;
+      throw new SaveError("upload", error instanceof Error ? error.message : String(error), [asset.id]);
+    });
     // A failed upload is retried on the next save.
     pending.catch(() => uploads.delete(asset.id));
     uploads.set(asset.id, pending);
@@ -46,8 +67,19 @@ function uploadAsset(asset: Asset): Promise<void> {
   return pending;
 }
 
+// Every asset is attempted, so a failure can name all the files that didn't make it.
+async function uploadAll(zine: Zine): Promise<void> {
+  const results = await Promise.allSettled(Object.values(zine.assets).map(uploadAsset));
+  const errors: unknown[] = results.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
+  if (!errors.length) return;
+  const session = errors.find((e) => e instanceof SaveError && e.failure.reason !== "upload");
+  if (session) throw session;
+  const assetIds = errors.flatMap((e) => (e instanceof SaveError ? e.failure.assetIds : []));
+  throw new SaveError("upload", `${assetIds.length} upload(s) failed`, assetIds);
+}
+
 export async function saveCloudZine(zine: Zine): Promise<void> {
-  await Promise.all(Object.values(zine.assets).map(uploadAsset));
+  await uploadAll(zine);
   await api("/api/zines/" + zine.id, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

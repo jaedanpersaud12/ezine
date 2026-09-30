@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CanvasBoundary } from "@/components/editor/CanvasBoundary";
 import { CommandMenu } from "@/components/editor/CommandMenu";
 import { PreviewOverlay } from "@/components/editor/PreviewOverlay";
 import { Sidebar } from "@/components/editor/Sidebar";
@@ -11,6 +12,7 @@ import { TopBar } from "@/components/editor/TopBar";
 import { useEditorShortcuts } from "@/hooks/useEditorShortcuts";
 import { markUploaded, saveCloudZine } from "@/lib/editor/cloud";
 import { loadZine, saveZine } from "@/lib/editor/persist";
+import { toSaveFailure } from "@/lib/editor/saveError";
 import { newZine } from "@/lib/zine/create";
 import type { Zine } from "@/lib/zine/schema";
 import { useEditorStore } from "@/stores/editor";
@@ -55,11 +57,18 @@ function usePersistence(source: EditorSource): void {
           if (useEditorStore.getState().zine === zine) useEditorStore.getState().setSaveState("saved");
         } catch (error) {
           console.error("Autosave failed", error);
-          useEditorStore.getState().setSaveState("error");
+          useEditorStore.getState().setSaveState("error", toSaveFailure(error));
           if (!cancelled && timer === undefined) timer = window.setTimeout(flush, RETRY_MS);
         }
       });
     };
+    // The save status's Retry (and signing back in) saves straight away.
+    useEditorStore.setState({
+      retrySave: () => {
+        useEditorStore.getState().setSaveState("saving");
+        flush();
+      },
+    });
     const unsubscribe = useEditorStore.subscribe((state, prev) => {
       if (!state.zine || state.zine === prev.zine || !prev.zine) return;
       window.clearTimeout(timer);
@@ -90,7 +99,15 @@ function usePersistence(source: EditorSource): void {
         if (zine) void save(zine).catch((error: unknown) => console.error("Save on exit failed", error));
       }
       // The store outlives the editor; don't let the next one open on this document.
-      useEditorStore.setState({ zine: null, saveState: "idle", past: [], future: [], selection: [] });
+      useEditorStore.setState({
+        zine: null,
+        saveState: "idle",
+        saveError: null,
+        retrySave: () => {},
+        past: [],
+        future: [],
+        selection: [],
+      });
     };
   }, [source]);
 }
@@ -108,7 +125,13 @@ export function EditorApp({ source }: Props) {
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="relative flex min-h-0 flex-1">
-            {ready ? <Stage /> : <div className="flex-1 bg-muted" />}
+            {ready ? (
+              <CanvasBoundary>
+                <Stage />
+              </CanvasBoundary>
+            ) : (
+              <div className="flex-1 bg-muted" />
+            )}
             <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
               <Toolbar />
             </div>

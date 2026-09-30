@@ -2,12 +2,12 @@
 
 import { useState, type MouseEvent } from "react";
 import { Reorder } from "motion/react";
-import { Eye, EyeOff, Image as ImageIcon, Lock, LockOpen, PenLine, Shapes, Type } from "lucide-react";
+import { CloudAlert, Eye, EyeOff, Image as ImageIcon, Lock, LockOpen, PenLine, Shapes, Type } from "lucide-react";
 import { ContextMenu } from "@/components/interior/context-menu";
 import { useReorderList } from "@/components/interior/reorder-list";
 import { useLayerMenu } from "@/hooks/useLayerMenu";
 import type { Layer } from "@/lib/zine/schema";
-import { selectCurrentSpread, useEditorStore } from "@/stores/editor";
+import { selectCurrentSpread, selectFailedUploads, useEditorStore } from "@/stores/editor";
 import { cn } from "@/lib/utils";
 
 const KIND_ICON: Record<Layer["kind"], React.ReactNode> = {
@@ -26,6 +26,7 @@ export function LayersPanel() {
   const select = useEditorStore((s) => s.select);
   const patchLayers = useEditorStore((s) => s.patchLayers);
   const reorderLayers = useEditorStore((s) => s.reorderLayers);
+  const failedUploads = useEditorStore(selectFailedUploads);
   const [dragOrder, setDragOrder] = useState<Layer[] | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const menu = useLayerMenu();
@@ -65,6 +66,7 @@ export function LayersPanel() {
           {items.map((layer) => {
             const active = selection.includes(layer.id);
             const lifted = list.grabbed === layer.id || list.dragging === layer.id;
+            const uploadFailed = layer.kind === "image" && failedUploads.includes(layer.assetId);
             return (
               <Reorder.Item
                 key={layer.id}
@@ -117,6 +119,20 @@ export function LayersPanel() {
                     {layer.name}
                   </span>
                 )}
+                {uploadFailed ? (
+                  <button
+                    type="button"
+                    aria-label="This image didn't upload. Retry"
+                    title="This image didn't upload. Click to retry"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      useEditorStore.getState().retrySave();
+                    }}
+                    className="flex size-6 items-center justify-center rounded text-destructive hover:bg-destructive-subtle [&_svg]:size-3.5"
+                  >
+                    <CloudAlert />
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   aria-label={layer.locked ? "Unlock" : "Lock"}

@@ -1,3 +1,4 @@
+import { SaveError } from "@/lib/editor/saveError";
 import { zineSchema, type Zine } from "@/lib/zine/schema";
 
 // On-device storage. Signed out, this holds the one working zine; signed in, documents live in the
@@ -50,7 +51,11 @@ export async function loadZine(): Promise<Zine | null> {
 }
 
 export async function saveZine(zine: Zine): Promise<void> {
-  await run(DOCS, "readwrite", (s) => s.put(zine, CURRENT));
+  try {
+    await run(DOCS, "readwrite", (s) => s.put(zine, CURRENT));
+  } catch (error) {
+    throw new SaveError("storage", error instanceof Error ? error.message : String(error));
+  }
 }
 
 export async function putBlob(id: string, blob: Blob): Promise<void> {

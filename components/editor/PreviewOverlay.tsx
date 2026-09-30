@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
+import { PreviewBoundary } from "@/components/editor/PreviewBoundary";
+import { PreviewFailed } from "@/components/editor/PreviewFailed";
+import { PreviewScene } from "@/components/editor/PreviewScene";
 import { ReaderToolbar } from "@/components/reader/ReaderToolbar";
 import { renderPages } from "@/lib/editor/render";
 import { leafCount, type Zine } from "@/lib/zine/schema";
 import { useEditorStore } from "@/stores/editor";
 import { useReaderStore } from "@/stores/reader";
-
-const ReaderScene = dynamic(() => import("@/components/reader/ReaderScene"), { ssr: false });
 
 // Page texture resolution: 5 px/mm ≈ 127 dpi, plenty for a book on screen.
 const PREVIEW_PX_PER_MM = 5;
@@ -21,6 +21,7 @@ export function PreviewOverlay() {
   const open = useEditorStore((s) => s.previewOpen);
   const setOpen = useEditorStore((s) => s.setPreviewOpen);
   const [rendered, setRendered] = useState<Rendered | null>(null);
+  const [failed, setFailed] = useState(false);
   // Stable per render pass, so the book only rebuilds when the pages do.
   const pageImage = useMemo(() => (rendered ? (side: number) => rendered.pages.get(side) : undefined), [rendered]);
 
@@ -35,10 +36,14 @@ export function PreviewOverlay() {
       .then((pages) => {
         if (!cancelled) setRendered({ zine, pages });
       })
-      .catch((error: unknown) => console.error("Preview render failed", error));
+      .catch((error: unknown) => {
+        console.error("Preview render failed", error);
+        if (!cancelled) setFailed(true);
+      });
     return () => {
       cancelled = true;
       setRendered(null);
+      setFailed(false);
     };
   }, [open]);
 
@@ -64,21 +69,25 @@ export function PreviewOverlay() {
           exit={{ opacity: 0, transition: { duration: 0.18 } }}
           className="fixed inset-0 z-40 bg-muted"
         >
-          {rendered ? (
+          {failed ? (
+            <PreviewFailed onClose={() => setOpen(false)} />
+          ) : rendered ? (
             <motion.div
               className="absolute inset-0"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
             >
-              <ReaderScene
-                widthMm={rendered.zine.trim.widthMm}
-                heightMm={rendered.zine.trim.heightMm}
-                leafCount={leafCount(rendered.zine)}
-                pageImage={pageImage}
-                stapled={rendered.zine.binding === "saddle"}
-                version={rendered.zine.updatedAt}
-              />
+              <PreviewBoundary onClose={() => setOpen(false)}>
+                <PreviewScene
+                  widthMm={rendered.zine.trim.widthMm}
+                  heightMm={rendered.zine.trim.heightMm}
+                  leafCount={leafCount(rendered.zine)}
+                  pageImage={pageImage}
+                  stapled={rendered.zine.binding === "saddle"}
+                  version={rendered.zine.updatedAt}
+                />
+              </PreviewBoundary>
             </motion.div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">

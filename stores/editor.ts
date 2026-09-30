@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { produce, type Draft } from "immer";
 import { cloneLayer, newSpread } from "@/lib/zine/create";
+import type { SaveFailure } from "@/lib/editor/saveError";
 import { DEFAULT_INK } from "@/lib/zine/palettes";
 import { pageStep, type Binding, type Layer, type Spread, type Zine } from "@/lib/zine/schema";
 
@@ -32,6 +33,11 @@ type EditorState = {
   previewOpen: boolean;
   commandOpen: boolean;
   saveState: SaveState;
+  // Why the last save failed. Kept through later attempts until one succeeds, so a failed
+  // upload stays marked on its layer while the editor retries.
+  saveError: SaveFailure | null;
+  // Save now, skipping the autosave delay. Set by the editor's persistence while it's mounted.
+  retrySave: () => void;
   past: Zine[];
   future: Zine[];
   lastChange: { key: string | null; at: number };
@@ -50,7 +56,7 @@ type EditorState = {
   toggleSnapping: () => void;
   setPreviewOpen: (open: boolean) => void;
   setCommandOpen: (open: boolean) => void;
-  setSaveState: (state: SaveState) => void;
+  setSaveState: (state: SaveState, failure?: SaveFailure) => void;
 
   addLayer: (layer: Layer) => void;
   patchLayers: (ids: string[], patch: Partial<Layer>, options?: ChangeOptions) => void;
@@ -94,6 +100,13 @@ function blankSpreads(zine: Zine): Spread[] {
   return Array.from({ length: pageStep(zine) / 2 }, newSpread);
 }
 
+const NO_FAILED_UPLOADS: string[] = [];
+
+// Asset ids whose upload failed on the last save attempt (stable when there are none).
+export function selectFailedUploads(state: EditorState): string[] {
+  return state.saveError?.reason === "upload" ? state.saveError.assetIds : NO_FAILED_UPLOADS;
+}
+
 export const useEditorStore = create<EditorState>()((set, get) => ({
   zine: null,
   spreadIndex: 0,
@@ -105,6 +118,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   previewOpen: false,
   commandOpen: false,
   saveState: "idle",
+  saveError: null,
+  retrySave: () => {},
   past: [],
   future: [],
   lastChange: { key: null, at: 0 },
@@ -173,7 +188,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   toggleSnapping: () => set({ snapping: !get().snapping }),
   setPreviewOpen: (previewOpen) => set({ previewOpen }),
   setCommandOpen: (commandOpen) => set({ commandOpen }),
-  setSaveState: (saveState) => set({ saveState }),
+  setSaveState: (saveState, failure) =>
+    set({
+      saveState,
+      saveError: saveState === "error" ? (failure ?? { reason: "server", assetIds: [] }) : saveState === "saved" ? null : get().saveError,
+    }),
 
   addLayer: (layer) => {
     const { spreadIndex } = get();

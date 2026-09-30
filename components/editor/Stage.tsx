@@ -8,7 +8,7 @@ import { STAGE_EVENT, type StageEventDetail } from "@/lib/editor/commands";
 import { StageController } from "@/lib/editor/fabric/StageController";
 import type { SheetSpec } from "@/lib/editor/fabric/ZineCanvas";
 import { importFiles } from "@/lib/editor/imports";
-import { exposeForTests } from "@/lib/editor/testHooks";
+import { exposeForTests, useTestCrash } from "@/lib/editor/testHooks";
 import { spreadGeometry, type Layer } from "@/lib/zine/schema";
 import { useEditorStore } from "@/stores/editor";
 
@@ -20,6 +20,7 @@ function themeColors(): Pick<SheetSpec, "pasteboard" | "guide" | "accent"> {
 }
 
 export function Stage() {
+  useTestCrash("stage");
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [controller, setController] = useState<StageController | null>(null);
