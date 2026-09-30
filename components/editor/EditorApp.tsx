@@ -23,6 +23,8 @@ type Props = {
 };
 
 const AUTOSAVE_MS = 800;
+// After a failed save (offline, a dropped upload), try again on this delay without waiting for an edit.
+const RETRY_MS = 5000;
 
 // Load the zine, then save it shortly after every change. Saves run one at a time so a slow
 // request can't land after (and overwrite) a newer one.
@@ -54,6 +56,7 @@ function usePersistence(source: EditorSource): void {
         } catch (error) {
           console.error("Autosave failed", error);
           useEditorStore.getState().setSaveState("error");
+          if (!cancelled && timer === undefined) timer = window.setTimeout(flush, RETRY_MS);
         }
       });
     };
@@ -65,14 +68,21 @@ function usePersistence(source: EditorSource): void {
     });
 
     const warn = (e: BeforeUnloadEvent): void => {
-      if (useEditorStore.getState().saveState === "saving") e.preventDefault();
+      const state = useEditorStore.getState().saveState;
+      if (state === "saving" || state === "error") e.preventDefault();
     };
     window.addEventListener("beforeunload", warn);
+    // Back online: don't wait out the retry delay.
+    const online = (): void => {
+      if (useEditorStore.getState().saveState === "error") flush();
+    };
+    window.addEventListener("online", online);
 
     return () => {
       cancelled = true;
       unsubscribe();
       window.removeEventListener("beforeunload", warn);
+      window.removeEventListener("online", online);
       // Leaving mid-debounce (back to the library, into sign-in): save what's there now.
       if (timer !== undefined) {
         const zine = useEditorStore.getState().zine;
