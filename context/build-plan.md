@@ -48,9 +48,28 @@ Phase A makes it safe to invite people. Phase B makes it worth inviting them. Ph
 it feel finished. Phase D is the launch itself. Inside a phase, the order is a recommendation;
 the dependencies are called out where they're real.
 
+Feature numbers are IDs, not positions: they name the branch and folder and stay fixed. Phase A
+runs 06 → 01 → 05 → 02 → 03 → 04 → 07, because 03 and 04 need 06's migrations, 01's
+"draft lands in the new account" check needs 06's signed-in e2e, and 02–04's failure states
+should report into 05 from the start.
+
 ---
 
 ## Phase A: safe to invite people
+
+### 06 CI, releases and migrations
+
+- GitHub Actions on every PR: typecheck, lint, build, Playwright (Chromium). Required to merge.
+- Branch protection on `main`; work lands through PRs with real commit messages.
+- Migrations as files (`db/migrations/NNN-name.sql`) plus a small runner, applied in CI to a
+  Neon branch per preview deployment and to the default branch on release.
+- Signed-in e2e: Clerk testing tokens and a test user on the development instance, so the
+  "sign in to save" handover is tested end to end, not just up to the modal.
+- Replace the hand-listed localhost CORS ports with a fixed dev port in `launch.json` and the
+  Playwright config, and document it.
+
+Done when: a PR with a failing test can't merge; a migration runs on a preview branch
+automatically; the signed-in journey test (draft, sign in, claim, reload, image loads) passes in CI.
 
 ### 01 Production auth
 
@@ -60,9 +79,24 @@ Move Clerk to a production instance on ezine.jaedan.me.
   environment only; previews keep development keys).
 - Rename the Clerk application to "Zine Builder"; pick the sign-in methods (Google plus email
   code is the likely set) and configure Google OAuth with our own credentials.
+- The production instance issues new user ids, so zines owned by development-instance users are
+  orphaned. Decide per account: remap `owner` ids to the new ones (script, by email) or drop them.
+
+Depends on 06 for the signed-in e2e that proves the claim flow.
 
 Done when: signing up on ezine.jaedan.me shows no "Development mode" badge; Google and email
 both work; a draft made signed out lands in the new account after sign-up.
+
+### 05 Observability
+
+- Error tracking for client and server (PostHog error tracking, since PostHog is already in the
+  toolchain, or Sentry), with source maps, release tags and the user id attached.
+- Product analytics for the funnel: landing view, start zine, first edit, sign-in prompt shown,
+  signed up, draft claimed, export, share. Decide the event list in the feature's spec.
+- Structured server logs on the API routes (route, user, duration, outcome).
+
+Done when: a thrown error in production shows up in the dashboard with a readable stack; the
+funnel events appear for one real run through the journey.
 
 ### 02 Errors and failure states
 
@@ -90,11 +124,12 @@ Images arrive huge and are trusted blindly.
 - Per-user storage quota (bytes, tracked on `assets`) with a clear message at the limit.
 - Rate limit the API routes (per user, per route).
 - Cleanup job (Vercel cron): delete asset rows with no R2 object after a day, and R2 objects
-  no zine references after a grace period.
+  no zine references after a grace period. The grace period has to cover signed-out drafts
+  that live only in someone's browser and haven't been claimed yet.
 
 Depends on 06 for migrations (quota column).
 
-Done when: a 11 MB PNG photo imports at a few MB with no visible loss and still reports its
+Done when: an 11 MB PNG photo imports at a few MB with no visible loss and still reports its
 dpi; an upload lying about its size is rejected by R2; the quota and rate limit each have a
 test; the cleanup job removes a planted orphan and leaves a live asset alone.
 
@@ -106,36 +141,13 @@ test; the cleanup job removes a planted orphan and leaves a live asset alone.
 - Cap the document size on the server with a clear error (drawings are the heavy part).
 - Evict the IndexedDB blob cache by age and total size; never evict blobs that haven't uploaded.
 - An offline indicator in the top bar, and saves resume on reconnect (retry already exists).
+  A save resumed after reconnecting goes through the same version check, so a tab that was
+  offline while another device saved gets the conflict prompt, not an overwrite.
 
 Depends on 06 for migrations (version column).
 
 Done when: two browser contexts editing one zine produce the conflict prompt, not a silent
 overwrite (e2e); the cache stays under its cap across a scripted import of many images.
-
-### 05 Observability
-
-- Error tracking for client and server (PostHog error tracking, since PostHog is already in the
-  toolchain, or Sentry), with source maps, release tags and the user id attached.
-- Product analytics for the funnel: landing view, start zine, first edit, sign-in prompt shown,
-  signed up, draft claimed, export, share. Decide the event list in the feature's spec.
-- Structured server logs on the API routes (route, user, duration, outcome).
-
-Done when: a thrown error in production shows up in the dashboard with a readable stack; the
-funnel events appear for one real run through the journey.
-
-### 06 CI, releases and migrations
-
-- GitHub Actions on every PR: typecheck, lint, build, Playwright (Chromium). Required to merge.
-- Branch protection on `main`; work lands through PRs with real commit messages.
-- Migrations as files (`db/migrations/NNN-name.sql`) plus a small runner, applied in CI to a
-  Neon branch per preview deployment and to the default branch on release.
-- Signed-in e2e: Clerk testing tokens and a test user on the development instance, so the
-  "sign in to save" handover is tested end to end, not just up to the modal.
-- Replace the hand-listed localhost CORS ports with a fixed dev port in `launch.json` and the
-  Playwright config, and document it.
-
-Done when: a PR with a failing test can't merge; a migration runs on a preview branch
-automatically; the signed-in journey test (draft, sign in, claim, reload, image loads) passes in CI.
 
 ### 07 Launch basics
 
@@ -163,6 +175,8 @@ The reason to make a zine is to print it. This is the biggest missing feature.
     straight into the book: page N pairs with page 1 on the outer sheet, and so on inward.
 - Bleed and crop marks as options; a paper-size choice (A4/Letter sheet for A5/half-letter trim).
 - Probably a Web Worker (or a server route, if memory needs it) so the editor stays responsive.
+- Page rendering goes in one shared module (render a page off-screen at a given size and dpi),
+  which 09's published images and 10's cover thumbnails reuse rather than each growing their own.
 - A short "How to print and fold" sheet shown with the export.
 
 Done when: an exported 16-page A5 zine, printed double-sided on A4 and folded, reads in order
@@ -179,7 +193,8 @@ are embedded; images keep their dpi.
   in each viewer's browser.
 - Open Graph card with the cover; unpublish removes public access immediately.
 
-Depends on 07 for the OG image pipeline.
+Depends on 07 for the OG image pipeline (build it so it can take a per-zine cover) and on 08
+for the shared page renderer.
 
 Done when: a signed-out browser opens a published link and flips through it; unpublishing makes
 the link 404; a link to a private zine 404s.
@@ -191,6 +206,8 @@ the link 404; a link to a private zine 404s.
 - Rename, duplicate and delete from a card menu (delete keeps hold-to-confirm).
 - Sort by last edited (today) with an optional title sort; search once there are enough zines
   to need it.
+
+Depends on 08 for the shared page renderer.
 
 Done when: editing the cover changes the library card within a save or two; duplicating a zine
 with images copies the doc and shares the image blobs safely (delete one, the other still loads).
