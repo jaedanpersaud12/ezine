@@ -296,6 +296,25 @@ been performed once.
 
 ---
 
+## Phase E: added after the plan
+
+### 18 Admin: users and zines
+
+Added 2026-10-01 at the developer's request. A place for the owner to see who has signed up and
+what they've made.
+
+- `/admin`, only for users whose Clerk `publicMetadata.role` is `admin`: a users table with their
+  zine counts and storage, a page per user listing their zines, and a read-only 3D viewer for any
+  zine. Everyone else gets a 404.
+- Read-only on purpose: no editing, deleting or impersonating anyone's work.
+
+Depends on nothing in Phase A. Before launch, 07's privacy policy has to say the owner can view
+what people save.
+
+Done when: see the feature's `spec.md`.
+
+---
+
 ## Later
 
 Not in this push, noted so they aren't lost: dark mode (needs dark token values), real-time

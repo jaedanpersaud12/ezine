@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
+import { AdminLink } from "@/components/library/AdminLink";
 import { DraftSync } from "@/components/library/DraftSync";
 import { NewZineButton } from "@/components/library/NewZineButton";
 import { ZineCard } from "@/components/library/ZineCard";
@@ -20,6 +21,7 @@ export function Library({ zines }: Props) {
           <span className="text-sm font-semibold tracking-tight">Zine Builder</span>
         </Link>
         <div className="flex-1" />
+        <AdminLink />
         <UserButton />
       </header>
 

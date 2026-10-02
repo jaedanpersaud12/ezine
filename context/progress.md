@@ -28,6 +28,7 @@ Keep this short. Detail belongs in the feature's own folder — `spec.md`, `plan
 - [ ] **15** Small screens
 - [ ] **16** Performance and accessibility
 - [ ] **17** Launch QA and ops
+- [ ] **18** Admin: users and zines (in progress, `feat/18-admin`)
 
 ## Notes
 
