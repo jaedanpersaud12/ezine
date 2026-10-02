@@ -33,3 +33,13 @@ export async function deleteZine(zineId: string): Promise<void> {
   const assetIds = Object.keys(rows[0]?.doc.assets ?? {});
   if (assetIds.length) await sql`delete from assets where id = any(${assetIds}::uuid[])`;
 }
+
+// The stored document of a zine, whoever owns it.
+export async function zineDoc(zineId: string): Promise<Record<string, unknown> | null> {
+  const rows = (await db()`select doc from zines where id = ${zineId}`) as { doc: Record<string, unknown> }[];
+  return rows[0]?.doc ?? null;
+}
+
+export async function deleteAssets(ids: string[]): Promise<void> {
+  if (ids.length) await db()`delete from assets where id = any(${ids}::uuid[])`;
+}

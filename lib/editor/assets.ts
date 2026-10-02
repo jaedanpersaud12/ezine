@@ -103,3 +103,17 @@ export function ensureFont(zine: Zine, fontId: string, weight: number, italic: b
   }
   return ready;
 }
+
+// For viewers that bring their own bytes (the admin viewer): register an image or font so renders
+// can use it, without writing anything to this browser's blob store.
+export function primeImage(asset: Asset, blob: Blob): void {
+  urls.set(asset.id, URL.createObjectURL(blob));
+}
+
+export async function primeFont(asset: Asset, blob: Blob): Promise<void> {
+  if (!asset.family) return;
+  const face = new FontFace(asset.family, await blob.arrayBuffer());
+  await face.load();
+  document.fonts.add(face);
+  uploadsRegistered.set(asset.id, Promise.resolve());
+}

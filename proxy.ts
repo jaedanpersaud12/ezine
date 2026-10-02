@@ -4,7 +4,7 @@ import { authEnabled } from "@/lib/auth";
 
 // Optimistic gate only: pages and route handlers still check auth() themselves.
 // "/" stays public: signed out it's the local, on-device editor.
-const isPrivate = createRouteMatcher(["/zines(.*)"]);
+const isPrivate = createRouteMatcher(["/zines(.*)", "/admin(.*)"]);
 
 export default authEnabled
   ? clerkMiddleware(async (auth, req) => {
