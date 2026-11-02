@@ -32,6 +32,10 @@ type Leaf = {
   target: number;
   textures: Texture[];
   materials: Material[];
+  // Lazy books only: the front and back materials, and whether they carry real page art yet.
+  front: MeshStandardMaterial[];
+  back: MeshStandardMaterial[];
+  detailed: boolean;
 };
 
 export type BookRigOptions = {
@@ -43,6 +47,10 @@ export type BookRigOptions = {
   maxAnisotropy: number;
   // Real page art, by 1-based side number; placeholders fill any gaps.
   pageImage?: (side: number) => HTMLCanvasElement | undefined;
+  // Thick books: only leaves within this many of the open spread get real page art; the rest show
+  // `paperImage`. Page art is then drawn on demand as the reader moves (see `focus`).
+  pageWindow?: number;
+  paperImage?: HTMLCanvasElement;
 };
 
 export type BookRig = {
@@ -60,6 +68,10 @@ export type BookRig = {
   hold: (index: number) => void;
   // Ease a leaf back to where it belongs after a drag that didn't commit.
   settle: (index: number) => void;
+  // Put every leaf where `opened` says, with no animation (long jumps in a thick book).
+  jumpTo: (opened: number) => void;
+  // Lazy books: draw page art near `opened` and drop it far away. A no-op otherwise.
+  focus: (opened: number) => void;
   dispose: () => void;
 };
 
@@ -74,7 +86,9 @@ function findClip(clips: AnimationClip[], name: string): AnimationClip {
 }
 
 export function createBookRig(options: BookRigOptions): BookRig {
-  const { gltfScene, animations, widthMm, heightMm, leafCount, maxAnisotropy, pageImage } = options;
+  const { gltfScene, animations, widthMm, heightMm, leafCount, maxAnisotropy, pageImage, pageWindow, paperImage } =
+    options;
+  const lazy = pageWindow !== undefined;
   const w = mmToM(widthMm);
   const h = mmToM(heightMm);
   const stack = buildStack(leafCount, w);
@@ -89,6 +103,21 @@ export function createBookRig(options: BookRigOptions): BookRig {
     cover: findClip(animations, "turn_cover"),
   };
 
+  const toTexture = (image: HTMLCanvasElement): Texture => {
+    const texture = new CanvasTexture(image);
+    texture.colorSpace = SRGBColorSpace;
+    texture.flipY = false; // glTF UV convention
+    texture.anisotropy = maxAnisotropy;
+    return texture;
+  };
+  const pageTexture = (side: number): Texture => {
+    const image = pageImage?.(side);
+    if (!image) return makePlaceholderPage(side, sideCount, widthMm, heightMm, maxAnisotropy);
+    return toTexture(image);
+  };
+  // One small plain sheet shared by every far-away page of a lazy book.
+  const paper: Texture | null = lazy && paperImage ? toTexture(paperImage) : null;
+
   const leaves: Leaf[] = Array.from({ length: leafCount }, (_, i) => {
     const kind = leafKind(i, leafCount);
     const template = templates[kind];
@@ -97,24 +126,23 @@ export function createBookRig(options: BookRigOptions): BookRig {
     const root = SkeletonUtils.clone(template);
     root.scale.set(w, w, h); // width on x AND y, height on z: keeps the curl undistorted
 
-    const pageTexture = (side: number): Texture => {
-      const image = pageImage?.(side);
-      if (!image) return makePlaceholderPage(side, sideCount, widthMm, heightMm, maxAnisotropy);
-      const texture = new CanvasTexture(image);
-      texture.colorSpace = SRGBColorSpace;
-      texture.flipY = false; // glTF UV convention
-      texture.anisotropy = maxAnisotropy;
-      return texture;
-    };
-    const recto = pageTexture(i * 2 + 1);
-    const verso = pageTexture(i * 2 + 2);
+    const recto = lazy ? paper : pageTexture(i * 2 + 1);
+    const verso = lazy ? paper : pageTexture(i * 2 + 2);
     const materials: Material[] = [];
+    const front: MeshStandardMaterial[] = [];
+    const back: MeshStandardMaterial[] = [];
 
     root.traverse((o) => {
       if (!isSkinnedMesh(o) || !(o.material instanceof MeshStandardMaterial)) return;
       const material = o.material.clone();
-      if (material.name === "MAT-leaf-front") material.map = recto;
-      if (material.name === "MAT-leaf-back") material.map = verso;
+      if (material.name === "MAT-leaf-front") {
+        material.map = recto;
+        front.push(material);
+      }
+      if (material.name === "MAT-leaf-back") {
+        material.map = verso;
+        back.push(material);
+      }
       if (material.map) material.color.set(0xffffff);
       o.material = material;
       o.castShadow = true;
@@ -128,7 +156,19 @@ export function createBookRig(options: BookRigOptions): BookRig {
     action.play();
     action.paused = true;
 
-    return { root, mixer, action, kind, state: { p: 0 }, target: 0, textures: [recto, verso], materials };
+    return {
+      root,
+      mixer,
+      action,
+      kind,
+      state: { p: 0 },
+      target: 0,
+      textures: recto && verso && !lazy ? [recto, verso] : [],
+      materials,
+      front,
+      back,
+      detailed: !lazy,
+    };
   });
 
   const centreA = leafCount / 2 - 1;
@@ -199,7 +239,35 @@ export function createBookRig(options: BookRigOptions): BookRig {
     settle: (index) => {
       tween(index, leaves[index].target, SETTLE_SECONDS, 0, "power2.out");
     },
+    jumpTo: (opened) => {
+      leaves.forEach((leaf, i) => {
+        gsap.killTweensOf(leaf.state);
+        leaf.target = i < opened ? 1 : 0;
+        setProgress(i, leaf.target);
+      });
+    },
+    focus: (opened) => {
+      if (!lazy || pageWindow === undefined) return;
+      leaves.forEach((leaf, i) => {
+        const near = i >= opened - pageWindow && i < opened + pageWindow;
+        if (near === leaf.detailed) return;
+        leaf.textures.forEach((t) => t.dispose());
+        if (near) {
+          const recto = pageTexture(i * 2 + 1);
+          const verso = pageTexture(i * 2 + 2);
+          leaf.front.forEach((m) => (m.map = recto));
+          leaf.back.forEach((m) => (m.map = verso));
+          leaf.textures = [recto, verso];
+        } else {
+          leaf.front.forEach((m) => (m.map = paper));
+          leaf.back.forEach((m) => (m.map = paper));
+          leaf.textures = [];
+        }
+        leaf.detailed = near;
+      });
+    },
     dispose: () => {
+      paper?.dispose();
       leaves.forEach((leaf) => {
         // Safe to run twice (StrictMode): three re-uploads disposed textures and materials on next use.
         gsap.killTweensOf(leaf.state);

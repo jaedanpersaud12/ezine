@@ -29,6 +29,7 @@ Keep this short. Detail belongs in the feature's own folder — `spec.md`, `plan
 - [ ] **16** Performance and accessibility
 - [ ] **17** Launch QA and ops
 - [ ] **18** Admin: users and zines (in progress, `feat/18-admin`)
+- [ ] **19** Book reader, dev-only (in progress, `feat/19-book-reader`)
 
 ## Notes
 

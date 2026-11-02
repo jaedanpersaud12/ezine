@@ -17,6 +17,8 @@ const DRAG_COMMIT = 0.35;
 const DRAG_FULL_TURN = 0.45;
 // Pointer travel in px under which a press counts as a click.
 const CLICK_SLOP_PX = 4;
+// A move of more than this many leaves (a chapter jump in a thick book) happens instantly.
+const JUMP_LEAVES = 3;
 
 type Drag = { pointerId: number; startX: number; leaf: number | null; dir: 1 | -1; p: number };
 
@@ -27,9 +29,12 @@ type BookProps = {
   pageImage?: (side: number) => HTMLCanvasElement | undefined;
   // Saddle-stitch staples along the spine; off for unbound books.
   stapled?: boolean;
+  // Thick books draw page art only near the open spread. See createBookRig.
+  pageWindow?: number;
+  paperImage?: HTMLCanvasElement;
 };
 
-export function Book({ widthMm, heightMm, leafCount, pageImage, stapled = true }: BookProps) {
+export function Book({ widthMm, heightMm, leafCount, pageImage, stapled = true, pageWindow, paperImage }: BookProps) {
   const { scene, animations } = useGLTF(LEAF_URL);
   const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
   const domElement = useThree((s) => s.gl.domElement);
@@ -37,10 +42,22 @@ export function Book({ widthMm, heightMm, leafCount, pageImage, stapled = true }
 
   const groupRef = useRef<Group>(null);
   const clinchRef = useRef<Group>(null);
+  const shownRef = useRef(0);
 
   const book = useMemo(
-    () => createBookRig({ gltfScene: scene, animations, widthMm, heightMm, leafCount, maxAnisotropy, pageImage }),
-    [scene, animations, widthMm, heightMm, leafCount, maxAnisotropy, pageImage],
+    () =>
+      createBookRig({
+        gltfScene: scene,
+        animations,
+        widthMm,
+        heightMm,
+        leafCount,
+        maxAnisotropy,
+        pageImage,
+        pageWindow,
+        paperImage,
+      }),
+    [scene, animations, widthMm, heightMm, leafCount, maxAnisotropy, pageImage, pageWindow, paperImage],
   );
 
   useEffect(() => {
@@ -49,7 +66,10 @@ export function Book({ widthMm, heightMm, leafCount, pageImage, stapled = true }
   }, [book]);
 
   useEffect(() => {
-    book.turnTo(opened);
+    book.focus(opened);
+    if (Math.abs(opened - shownRef.current) > JUMP_LEAVES) book.jumpTo(opened);
+    else book.turnTo(opened);
+    shownRef.current = opened;
 
     // Keep whatever is showing centred: the right half when closed on the front, the left on the back.
     const group = groupRef.current;
