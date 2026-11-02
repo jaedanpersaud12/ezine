@@ -51,6 +51,9 @@ type ReaderSceneProps = {
   cameraRest?: Vec3;
   // Changes whenever the page art does, so the book rebuilds with new textures.
   version?: string;
+  // Thick books: page art only near the open spread, plain paper elsewhere.
+  pageWindow?: number;
+  paperImage?: HTMLCanvasElement;
 };
 
 export default function ReaderScene({
@@ -62,6 +65,8 @@ export default function ReaderScene({
   surface = "none",
   cameraRest = CAMERA_REST,
   version = "",
+  pageWindow,
+  paperImage,
 }: ReaderSceneProps) {
   return (
     <Canvas
@@ -103,6 +108,8 @@ export default function ReaderScene({
             leafCount={leafCount}
             pageImage={pageImage}
             stapled={stapled}
+            pageWindow={pageWindow}
+            paperImage={paperImage}
           />
         </group>
       </Suspense>

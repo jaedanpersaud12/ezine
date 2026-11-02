@@ -49,3 +49,12 @@ The admin e2e tests (`e2e/admin.spec.ts`) create their own accounts (`e2e-admin+
 `e2e-admin2+clerk_test@…`) in global setup and make sure the regular test user has no role. The
 viewer test doesn't wait for the 3D book to finish drawing: under headless software GL its render
 loop saturates the CPU and every later check crawls.
+
+# Book reader
+
+`/book` sets a novel manuscript (Markdown: `# Chapter N — Title` headings, blank-line paragraphs,
+`---` scene breaks, `*italic*`) as a 3D A5 paperback, with a chapter menu. It is a private reading
+copy: the text is never committed and production answers 404. Point `BOOK_PATH` at the file in
+`.env.development.local` (`~/` is allowed), or drop it at `content/book.local.md` (gitignored).
+The page re-reads the file on every load. A thick book only draws page art for the leaves near
+the open spread (`pageWindow` on `ReaderScene`); far pages are plain paper.

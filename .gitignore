@@ -43,3 +43,6 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# private manuscripts for the dev-only /book reader (see lib/server/book.ts)
+/content/*.local.md
