@@ -410,12 +410,13 @@ function drawPlate(ctx: CanvasRenderingContext2D, book: TypesetBook, page: Plate
   const top = fit === "cover" ? (PAGE_H - h) / 2 : PLATE_MARGIN + (boxH - h) / 2;
   ctx.drawImage(image, x, top, w, h);
 
-  if (page.caption) {
+  // The name goes under the right-hand page, clear of the fold, where the sheet's close-up is.
+  if (page.caption && page.half === "right") {
     ctx.font = `400 ${px(4.2)}px ${book.fonts.body}`;
     ctx.fillStyle = INK;
     ctx.letterSpacing = `${px(1.2)}px`;
     ctx.textAlign = "center";
-    ctx.fillText(page.caption.toUpperCase(), PAGE_W + offsetX, PAGE_H - PLATE_MARGIN - px(4));
+    ctx.fillText(page.caption.toUpperCase(), PAGE_W / 2, PAGE_H - PLATE_MARGIN - px(4));
     ctx.letterSpacing = "0px";
     ctx.textAlign = "left";
   }
