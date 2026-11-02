@@ -54,6 +54,9 @@ type ReaderSceneProps = {
   // Thick books: page art only near the open spread, plain paper elsewhere.
   pageWindow?: number;
   paperImage?: HTMLCanvasElement;
+  // Thick books: lie the open spread level and cap the block's depth (see BookRigOptions).
+  levelSpread?: boolean;
+  maxThicknessMm?: number;
 };
 
 export default function ReaderScene({
@@ -67,6 +70,8 @@ export default function ReaderScene({
   version = "",
   pageWindow,
   paperImage,
+  levelSpread,
+  maxThicknessMm,
 }: ReaderSceneProps) {
   return (
     <Canvas
@@ -110,6 +115,8 @@ export default function ReaderScene({
             stapled={stapled}
             pageWindow={pageWindow}
             paperImage={paperImage}
+            levelSpread={levelSpread}
+            maxThicknessMm={maxThicknessMm}
           />
         </group>
       </Suspense>

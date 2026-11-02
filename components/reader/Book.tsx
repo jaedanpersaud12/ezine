@@ -32,9 +32,21 @@ type BookProps = {
   // Thick books draw page art only near the open spread. See createBookRig.
   pageWindow?: number;
   paperImage?: HTMLCanvasElement;
+  levelSpread?: boolean;
+  maxThicknessMm?: number;
 };
 
-export function Book({ widthMm, heightMm, leafCount, pageImage, stapled = true, pageWindow, paperImage }: BookProps) {
+export function Book({
+  widthMm,
+  heightMm,
+  leafCount,
+  pageImage,
+  stapled = true,
+  pageWindow,
+  paperImage,
+  levelSpread,
+  maxThicknessMm,
+}: BookProps) {
   const { scene, animations } = useGLTF(LEAF_URL);
   const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
   const domElement = useThree((s) => s.gl.domElement);
@@ -56,8 +68,10 @@ export function Book({ widthMm, heightMm, leafCount, pageImage, stapled = true, 
         pageImage,
         pageWindow,
         paperImage,
+        levelSpread,
+        maxThicknessMm,
       }),
-    [scene, animations, widthMm, heightMm, leafCount, maxAnisotropy, pageImage, pageWindow, paperImage],
+    [scene, animations, widthMm, heightMm, leafCount, maxAnisotropy, pageImage, pageWindow, paperImage, levelSpread, maxThicknessMm],
   );
 
   useEffect(() => {

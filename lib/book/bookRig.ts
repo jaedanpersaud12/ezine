@@ -12,7 +12,7 @@ import {
   type Texture,
 } from "three";
 import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
-import { buildStack, leafHeight, leafKind, type LeafKind } from "@/lib/book/stack";
+import { buildStack, leafHeight, leafKind, levelLift, NO_LIFT, type LeafKind, type StackLift } from "@/lib/book/stack";
 import { makePlaceholderPage } from "@/lib/book/placeholder";
 import { mmToM } from "@/lib/book/trim";
 
@@ -51,6 +51,10 @@ export type BookRigOptions = {
   // `paperImage`. Page art is then drawn on demand as the reader moves (see `focus`).
   pageWindow?: number;
   paperImage?: HTMLCanvasElement;
+  // Thick books: raise the thinner stack so the open spread lies level, and keep the block no
+  // deeper than `maxThicknessMm`.
+  levelSpread?: boolean;
+  maxThicknessMm?: number;
 };
 
 export type BookRig = {
@@ -86,12 +90,23 @@ function findClip(clips: AnimationClip[], name: string): AnimationClip {
 }
 
 export function createBookRig(options: BookRigOptions): BookRig {
-  const { gltfScene, animations, widthMm, heightMm, leafCount, maxAnisotropy, pageImage, pageWindow, paperImage } =
-    options;
+  const {
+    gltfScene,
+    animations,
+    widthMm,
+    heightMm,
+    leafCount,
+    maxAnisotropy,
+    pageImage,
+    pageWindow,
+    paperImage,
+    levelSpread = false,
+    maxThicknessMm,
+  } = options;
   const lazy = pageWindow !== undefined;
   const w = mmToM(widthMm);
   const h = mmToM(heightMm);
-  const stack = buildStack(leafCount, w);
+  const stack = buildStack(leafCount, w, maxThicknessMm === undefined ? undefined : mmToM(maxThicknessMm));
   const sideCount = leafCount * 2;
 
   const templates: Record<LeafKind, Object3D | undefined> = {
@@ -178,13 +193,21 @@ export function createBookRig(options: BookRigOptions): BookRig {
   // Only an even leaf count has a centre spread to staple through.
   const hasCentre = leafCount % 2 === 0;
 
+  // Level books: every leaf's progress, so the lift can be worked out as leaves move.
+  const progress = leaves.map(() => 0);
+  let lift: StackLift = NO_LIFT;
+
   const placeClinch = (): void => {
     if (!clinch || !hasCentre) return;
     const a = leaves[centreA].state.p;
     const b = leaves[centreB].state.p;
-    const topA = leafHeight(stack, centreA, a) + stack.thickness[centreA] / 2;
-    const topB = leafHeight(stack, centreB, b) + stack.thickness[centreB] / 2;
+    const topA = leafHeight(stack, centreA, a, lift) + stack.thickness[centreA] / 2;
+    const topB = leafHeight(stack, centreB, b, lift) + stack.thickness[centreB] / 2;
     clinch.position.y = a < 0.5 ? topB : b >= 0.5 ? topA : Math.max(topA, topB);
+  };
+
+  const placeLeaf = (index: number): void => {
+    leaves[index].root.position.y = leafHeight(stack, index, leaves[index].state.p, lift);
   };
 
   const setProgress = (index: number, p: number): void => {
@@ -192,7 +215,18 @@ export function createBookRig(options: BookRigOptions): BookRig {
     leaf.state.p = p;
     leaf.action.time = p * leaf.action.getClip().duration;
     leaf.mixer.update(0);
-    leaf.root.position.y = leafHeight(stack, index, p);
+    if (levelSpread) {
+      progress[index] = p;
+      const next = levelLift(stack, progress);
+      const moved = next.right !== lift.right || next.left !== lift.left;
+      lift = next;
+      // A changed lift moves every stacked leaf, not just this one.
+      if (moved) leaves.forEach((_, i) => placeLeaf(i));
+      else placeLeaf(index);
+      placeClinch();
+      return;
+    }
+    placeLeaf(index);
     if (index === centreA || index === centreB) placeClinch();
   };
 

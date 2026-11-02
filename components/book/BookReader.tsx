@@ -23,6 +23,10 @@ const ReaderScene = dynamic(() => import("@/components/reader/ReaderScene"), { s
 // Leaves either side of the open spread that carry real page art; the rest are plain paper.
 const PAGE_WINDOW = 3;
 
+// A paperback this long is about this deep. Without a cap the leaf model's paper would make it
+// several centimetres thick.
+const BLOCK_DEPTH_MM = 14;
+
 type Ready = { book: TypesetBook; paper: HTMLCanvasElement };
 
 // If a face can't be fetched (offline dev, say), the book still sets in a system serif.
@@ -118,6 +122,8 @@ export function BookReader({ source, images }: { source: string; images: BookIma
             stapled={false}
             pageWindow={PAGE_WINDOW}
             paperImage={ready.paper}
+            levelSpread
+            maxThicknessMm={BLOCK_DEPTH_MM}
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
             <BookToolbar book={ready.book} />
