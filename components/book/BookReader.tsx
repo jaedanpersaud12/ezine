@@ -4,7 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { BookToolbar } from "@/components/book/BookToolbar";
 import { parseManuscript } from "@/lib/book/manuscript";
-import { BOOK_TRIM, drawPage, drawPaper, typesetBook, type BookFonts, type TypesetBook } from "@/lib/book/typeset";
+import {
+  BOOK_TRIM,
+  drawPage,
+  drawPaper,
+  typesetBook,
+  type BookFonts,
+  type BookPlates,
+  type TypesetBook,
+} from "@/lib/book/typeset";
+import type { BookImages } from "@/lib/book/images";
 import { builtInFont } from "@/lib/zine/fonts";
 import { useReaderStore } from "@/stores/reader";
 
@@ -31,6 +40,39 @@ async function loadFace(family: string | undefined, styles: string[]): Promise<s
   return family;
 }
 
+// A picture that fails to load is left out rather than stopping the book.
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => {
+      console.warn("[book] picture didn't load", url);
+      resolve(null);
+    };
+    image.src = url;
+  });
+}
+
+async function loadPlates(images: BookImages): Promise<BookPlates> {
+  const cast = await Promise.all(
+    images.cast.map(async (member) => ({ name: member.name, image: await loadImage(member.url) })),
+  );
+  const chapters = new Map<number, HTMLImageElement[]>();
+  await Promise.all(
+    Object.entries(images.chapters).map(async ([chapter, urls]) => {
+      const loaded = await Promise.all(urls.map(loadImage));
+      chapters.set(
+        Number(chapter),
+        loaded.filter((image): image is HTMLImageElement => image !== null),
+      );
+    }),
+  );
+  return {
+    cast: cast.flatMap((m) => (m.image ? [{ name: m.name, image: m.image }] : [])),
+    chapters,
+  };
+}
+
 async function loadFonts(): Promise<BookFonts> {
   const [body, display] = await Promise.all([
     loadFace(builtInFont("caslon")?.family, ["400", "italic 400", "700"]),
@@ -39,16 +81,16 @@ async function loadFonts(): Promise<BookFonts> {
   return { body, display };
 }
 
-export function BookReader({ source }: { source: string }) {
+export function BookReader({ source, images }: { source: string; images: BookImages }) {
   const [ready, setReady] = useState<Ready | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    loadFonts()
-      .then((fonts) => {
+    Promise.all([loadFonts(), loadPlates(images)])
+      .then(([fonts, plates]) => {
         if (cancelled) return;
-        const book = typesetBook(parseManuscript(source), fonts);
+        const book = typesetBook(parseManuscript(source), fonts, plates);
         useReaderStore.setState({ leafCount: book.leafCount, opened: 0 });
         setReady({ book, paper: drawPaper() });
       })
@@ -59,7 +101,7 @@ export function BookReader({ source }: { source: string }) {
     return () => {
       cancelled = true;
     };
-  }, [source]);
+  }, [source, images]);
 
   const book = ready?.book;
   const pageImage = useCallback((side: number) => (book ? drawPage(book, side) : undefined), [book]);

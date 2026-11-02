@@ -56,5 +56,9 @@ loop saturates the CPU and every later check crawls.
 `---` scene breaks, `*italic*`) as a 3D A5 paperback, with a chapter menu. It is a private reading
 copy: the text is never committed and production answers 404. Point `BOOK_PATH` at the file in
 `.env.development.local` (`~/` is allowed), or drop it at `content/book.local.md` (gitignored).
-The page re-reads the file on every load. A thick book only draws page art for the leaves near
+Pictures come from `BOOK_IMAGES_DIR` (or `content/book-images/`, gitignored), by filename:
+`cast-01-juno.png` becomes a two-page cast spread at the front captioned "Juno", and
+`ch03-2.png` is chapter 3's second full-bleed spread, placed evenly through the chapter's text
+(never two spreads back to back). `/book/images/[file]` serves them, dev only, plain filenames only.
+The page re-reads the file and the folder on every load. A thick book only draws page art for the leaves near
 the open spread (`pageWindow` on `ReaderScene`); far pages are plain paper.

@@ -9,3 +9,8 @@
 - Evidence: rendered pages checked as PNGs (contents, chapter opener, body, scene break, folios);
   3D screenshots of cover, open spread and chapter jump under headless Chrome. `next build`
   can't run in the sandbox (Google Fonts is unreachable there), same for every route.
+- Pictures (2026-11-02): cast sheets as contained spreads after the contents, chapter stills as
+  full-bleed spreads anchored after evenly spaced paragraphs; a spread waits for a page break that
+  lands on a verso. Front matter is now dynamic (`book.frontMatterSides`), so `folioOf` takes the
+  book. Checked with 9 + 32 placeholder images: halves meet at the spine, folios still start at 1
+  on chapter one, the image route rejects `..%2F` paths with 404.

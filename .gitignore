@@ -46,3 +46,4 @@ next-env.d.ts
 
 # private manuscripts for the dev-only /book reader (see lib/server/book.ts)
 /content/*.local.md
+/content/book-images/

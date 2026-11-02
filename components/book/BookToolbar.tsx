@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { folioOf, openedForSide, type TypesetBook } from "@/lib/book/typeset";
 import { useReaderStore } from "@/stores/reader";
 
-function spreadLabel(opened: number, leafCount: number): string {
+function spreadLabel(book: TypesetBook, opened: number, leafCount: number): string {
   if (opened === 0) return "Cover";
   if (opened === leafCount) return "Back cover";
-  const left = folioOf(opened * 2);
-  const right = folioOf(opened * 2 + 1);
+  const left = folioOf(book, opened * 2);
+  const right = folioOf(book, opened * 2 + 1);
   if (left !== null && right !== null) return `Pages ${left}–${right}`;
   if (right !== null) return `Page ${right}`;
   return "Front matter";
@@ -46,7 +46,7 @@ export function BookToolbar({ book }: { book: TypesetBook }) {
         <ChevronLeft />
       </Button>
       <span className="min-w-28 text-center text-sm tabular-nums" aria-live="polite">
-        {spreadLabel(opened, leafCount)}
+        {spreadLabel(book, opened, leafCount)}
       </span>
       <Button
         variant="ghost"

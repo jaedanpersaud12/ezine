@@ -29,8 +29,12 @@ const OPENER_LABEL_Y = MARGIN.top + px(30);
 const OPENER_TITLE_Y = MARGIN.top + px(42);
 const OPENER_TEXT_Y = MARGIN.top + px(62);
 
-// First text page is page 1; the sides before it are front matter.
-const FRONT_MATTER_SIDES = 6;
+// Sides before the cast plates: cover, blank, title, colophon, contents.
+const BASE_FRONT_SIDES = 5;
+// Space under a contained plate for its caption.
+const PLATE_MARGIN = px(12);
+const CAPTION_SPACE = px(16);
+const PLATE_DARK = "#1b1714";
 
 const PAPER = "#f5efe3";
 const INK = "#231f1b";
@@ -61,7 +65,26 @@ export type BookPage =
   | { kind: "title"; side: number }
   | { kind: "colophon"; side: number }
   | { kind: "contents"; side: number }
+  | PlatePage
   | TextPage;
+
+// One half of an illustration printed across a two-page spread: left half on the verso (even
+// side), right half on the recto. "cover" bleeds off every edge; "contain" sits on the paper with
+// a caption, for the cast sheets.
+export type PlatePage = {
+  kind: "plate";
+  side: number;
+  image: HTMLImageElement;
+  half: "left" | "right";
+  fit: "cover" | "contain";
+  caption: string | null;
+};
+
+export type BookPlates = {
+  cast: { name: string; image: HTMLImageElement }[];
+  // By chapter number in reading order (1-based); spread evenly through the chapter.
+  chapters: Map<number, HTMLImageElement[]>;
+};
 
 export type ChapterStart = { label: string; title: string; side: number; folio: number };
 
@@ -73,10 +96,12 @@ export type TypesetBook = {
   sideCount: number;
   leafCount: number;
   fonts: BookFonts;
+  // Page 1 is the first side after these.
+  frontMatterSides: number;
 };
 
-export function folioOf(side: number): number | null {
-  return side > FRONT_MATTER_SIDES ? side - FRONT_MATTER_SIDES : null;
+export function folioOf(book: Pick<TypesetBook, "frontMatterSides">, side: number): number | null {
+  return side > book.frontMatterSides ? side - book.frontMatterSides : null;
 }
 
 function fontSpec(fonts: BookFonts, size: number, italic: boolean, bold: boolean): string {
@@ -146,7 +171,11 @@ function breakParagraph(words: Word[], indent: number, space: number): { words: 
   return lines;
 }
 
-export function typesetBook(manuscript: Manuscript, fonts: BookFonts): TypesetBook {
+export function typesetBook(
+  manuscript: Manuscript,
+  fonts: BookFonts,
+  plates: BookPlates = { cast: [], chapters: new Map() },
+): TypesetBook {
   const measureCanvas = document.createElement("canvas");
   const ctx = measureCanvas.getContext("2d");
   if (!ctx) throw new Error("2D canvas unavailable");
@@ -164,14 +193,34 @@ export function typesetBook(manuscript: Manuscript, fonts: BookFonts): TypesetBo
     { kind: "title", side: 3 },
     { kind: "colophon", side: 4 },
     { kind: "contents", side: 5 },
-    { kind: "blank", side: 6 },
   ];
+  let side = BASE_FRONT_SIDES;
+
+  // A spread always starts on an even side.
+  const pushSpread = (image: HTMLImageElement, fit: PlatePage["fit"], caption: string | null): void => {
+    if (side % 2 === 0) pages.push({ kind: "blank", side: ++side });
+    pages.push({ kind: "plate", side: ++side, image, half: "left", fit, caption });
+    pages.push({ kind: "plate", side: ++side, image, half: "right", fit, caption });
+  };
+
+  // The cast, one spread each, then a blank so chapter one opens on a recto.
+  for (const member of plates.cast) pushSpread(member.image, "contain", member.name);
+  pages.push({ kind: "blank", side: ++side });
+  const frontMatterSides = side;
+  const folio = (s: number): number => s - frontMatterSides;
+
   const chapters: ChapterStart[] = [];
-  let side = FRONT_MATTER_SIDES;
   let page: TextPage | null = null;
   let y = 0;
+  // Chapter stills wait here until the text reaches a page break that lands on a spread.
+  const pending: HTMLImageElement[] = [];
 
   const newPage = (chapterTitle: string, opener: TextPage["opener"]): TextPage => {
+    // At most one spread per page break, so two stills never land back to back.
+    if (pending.length > 0 && side % 2 === 1) {
+      const image = pending.shift();
+      if (image) pushSpread(image, "cover", null);
+    }
     side++;
     const next: TextPage = { kind: "text", side, lines: [], ornaments: [], opener, chapterTitle };
     pages.push(next);
@@ -181,9 +230,15 @@ export function typesetBook(manuscript: Manuscript, fonts: BookFonts): TypesetBo
   };
   const room = (): number => Math.floor((TEXT_BOTTOM - y) / LEADING) + 1;
 
-  for (const chapter of manuscript.chapters) {
+  manuscript.chapters.forEach((chapter, chapterIndex) => {
     const opened = newPage(chapter.title, { label: chapter.label, title: chapter.title });
-    chapters.push({ label: chapter.label, title: chapter.title, side: opened.side, folio: folioOf(opened.side) ?? 0 });
+    chapters.push({ label: chapter.label, title: chapter.title, side: opened.side, folio: folio(opened.side) });
+
+    // Stills go after evenly spaced paragraphs, so a chapter's pictures arrive in story order.
+    const stills = plates.chapters.get(chapterIndex + 1) ?? [];
+    const paragraphCount = chapter.blocks.filter((b) => b.kind === "para").length;
+    const anchors = stills.map((_, k) => Math.max(1, Math.round(((k + 1) * paragraphCount) / (stills.length + 1))));
+    let paragraphsSet = 0;
 
     chapter.blocks.forEach((block: Block) => {
       if (block.kind === "break") {
@@ -212,7 +267,18 @@ export function typesetBook(manuscript: Manuscript, fonts: BookFonts): TypesetBo
         (page as TextPage).lines.push({ y, segments });
         y += LEADING;
       }
+
+      paragraphsSet++;
+      anchors.forEach((anchor, k) => {
+        if (anchor === paragraphsSet) pending.push(stills[k]);
+      });
     });
+  });
+
+  // Any stills still waiting go before the back matter.
+  while (pending.length > 0) {
+    const image = pending.shift();
+    if (image) pushSpread(image, "cover", null);
   }
 
   // Inside back cover and back cover, after an even number of sides before them.
@@ -228,6 +294,7 @@ export function typesetBook(manuscript: Manuscript, fonts: BookFonts): TypesetBo
     sideCount: side,
     leafCount: side / 2,
     fonts,
+    frontMatterSides,
   };
 }
 
@@ -315,10 +382,54 @@ function drawText(ctx: CanvasRenderingContext2D, book: TypesetBook, page: TextPa
     centred(ctx, "* * *", ornament.y, `400 ${BODY_SIZE}px ${book.fonts.body}`, INK_SOFT);
   }
 
-  const folio = folioOf(page.side);
+  const folio = folioOf(book, page.side);
   if (folio !== null && !page.opener) {
     centred(ctx, String(folio), PAGE_H - MARGIN.bottom + px(11), `400 ${px(3)}px ${book.fonts.body}`, INK_SOFT);
   }
+}
+
+// The half of a spread-wide image that falls on this side. Both halves use the same geometry, so
+// they meet exactly at the spine.
+function drawPlate(ctx: CanvasRenderingContext2D, book: TypesetBook, page: PlatePage): void {
+  const spreadW = PAGE_W * 2;
+  const { image, fit } = page;
+  const offsetX = page.half === "left" ? 0 : -PAGE_W;
+
+  ctx.fillStyle = fit === "cover" ? PLATE_DARK : PAPER;
+  ctx.fillRect(0, 0, PAGE_W, PAGE_H);
+
+  const boxW = fit === "cover" ? spreadW : spreadW - PLATE_MARGIN * 2;
+  const boxH = fit === "cover" ? PAGE_H : PAGE_H - PLATE_MARGIN * 2 - CAPTION_SPACE;
+  const scale =
+    fit === "cover"
+      ? Math.max(boxW / image.naturalWidth, boxH / image.naturalHeight)
+      : Math.min(boxW / image.naturalWidth, boxH / image.naturalHeight);
+  const w = image.naturalWidth * scale;
+  const h = image.naturalHeight * scale;
+  const x = (spreadW - w) / 2 + offsetX;
+  const top = fit === "cover" ? (PAGE_H - h) / 2 : PLATE_MARGIN + (boxH - h) / 2;
+  ctx.drawImage(image, x, top, w, h);
+
+  if (page.caption) {
+    ctx.font = `400 ${px(4.2)}px ${book.fonts.body}`;
+    ctx.fillStyle = INK;
+    ctx.letterSpacing = `${px(1.2)}px`;
+    ctx.textAlign = "center";
+    ctx.fillText(page.caption.toUpperCase(), PAGE_W + offsetX, PAGE_H - PLATE_MARGIN - px(4));
+    ctx.letterSpacing = "0px";
+    ctx.textAlign = "left";
+  }
+
+  // A soft shadow where the paper curves into the spine.
+  const gutter = px(14);
+  const shade = page.half === "left"
+    ? ctx.createLinearGradient(PAGE_W - gutter, 0, PAGE_W, 0)
+    : ctx.createLinearGradient(gutter, 0, 0, 0);
+  shade.addColorStop(0, "rgba(0, 0, 0, 0)");
+  shade.addColorStop(1, "rgba(0, 0, 0, 0.18)");
+  ctx.fillStyle = shade;
+  if (page.half === "left") ctx.fillRect(PAGE_W - gutter, 0, gutter, PAGE_H);
+  else ctx.fillRect(0, 0, gutter, PAGE_H);
 }
 
 // One printed side (1-based) as a canvas for the 3D reader.
@@ -329,6 +440,10 @@ export function drawPage(book: TypesetBook, side: number): HTMLCanvasElement {
 
   if (page?.kind === "front-cover" || page?.kind === "back-cover") {
     drawCover(ctx, book, page.kind === "front-cover");
+    return canvas;
+  }
+  if (page?.kind === "plate") {
+    drawPlate(ctx, book, page);
     return canvas;
   }
 
